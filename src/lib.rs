@@ -1,17 +1,27 @@
 //! This library provides the handy `RegularGrammar` derive macro that helps you
 //! create unsized type wrapping byte or char strings validated by a regular
-//! grammar. For now, only the [ABNF] grammar format is supported.
+//! grammar. It works by parsing a grammar specified in the documentation of
+//! your type, statically compiling it into a deterministic, minimal, regular
+//! automaton then translated into a Rust validation function.
+//!
+//! For now, only the [ABNF] grammar format is supported.
 //!
 //! [ABNF]: <https://datatracker.ietf.org/doc/html/rfc5234>
 //!
-//! # Example
+//! # Basic Usage
 //!
 //! The grammar is specified by code blocks in the type documentation.
+//! The type itself must be a simple tutple struct with a single unnamed field
+//! specifying the grammar "token string type". This token string type can be:
+//! - `[u8]`: the grammar is defined on bytes.
+//! - `str`: the grammar is defined on unicode characters.
+//!
+//! ## Example
 //!
 //! ```
 //! use static_regular_grammar::RegularGrammar;
 //!
-//! /// Example grammar
+//! /// Example grammar.
 //! ///
 //! /// ```abnf
 //! /// foo = "f" 1*("oo") ; the first non-terminal is used as entry point.
@@ -21,6 +31,71 @@
 //!
 //! let foo = Foo::new(b"foooooo").unwrap();
 //! ```
+//!
+//! # Sized Type
+//!
+//! The `RegularGrammar` macro works on unsized type, but it is often useful
+//! to have an sized equivalent that can own the data while still guaranteeing
+//! the validity of the data. The derive macro can do that for you using the
+//! `sized` attribute.
+//!
+//! ```
+//! # use static_regular_grammar::RegularGrammar;
+//! /// Example grammar, with sized variant.
+//! ///
+//! /// ```abnf
+//! /// foo = "f" 1*("oo")
+//! /// ```
+//! #[derive(RegularGrammar)]
+//! #[sized(FooBuf)] // this will generate a `FooBuf` type.
+//! pub struct Foo([u8]);
+//!
+//! let foo = FooBuf::new(b"foooooo".to_vec()).unwrap();
+//! ```
+//!
+//! The sized type will implement `Deref`, `Borrow` and `AsRef` to the unsized
+//! type. It will also include a method named `as_unsized_type_name` (e.g.
+//! `as_foo` in the example above) returning a reference to the unsized type.
+//!
+//! ## Common trait implementations
+//!
+//! You can specify what common trait to automatically implement for the sized
+//! type using the `derive` sub-attribute.
+//!
+//! ```ignore
+//! #[sized(FooBuf, derive(PartialEq, Eq))]
+//! ```
+//!
+//! The supported traits are:
+//! - `PartialEq`
+//! - `Eq`
+//! - `PartialOrd`
+//! - `Ord`
+//! - `Hash`
+//!
+//! All will rely on an equivalent implementation for the unsized type.
+//!
+//! # Caching
+//!
+//! When compiled, the input grammar is determinized and minimized. Those are
+//! expensive operation that can take several seconds on large grammars.
+//! To avoid unnecessary work, the resulting automaton is stored on disk until
+//! changes are made to the grammar. By default, the automaton will be stored
+//! in the `target` folder, as `regular-grammar/TypeName.automaton.cbor`. For
+//! instance, in the example above the path will be
+//! `target/regular-grammar/Foo.automaton.cbor`.
+//! You can specify the file path yourself using the `cache` attribute:
+//!
+//! ```ignore
+//! #[cache("path/to/cache.automaton.cbor")]
+//! ```
+//!
+//! The path must be relative, and must not include `..` segments.
+//! If you have multiple grammar types having the same name, use this attribute
+//! to avoid conflicts, otherwise caching will not work.
+//! For large grammars, it might be a good idea to cache the automaton directly
+//! with the sources, and ship it with your library/application to reduce
+//! compilation time on the user machine.
 use std::{
 	borrow::Cow,
 	path::{Path, PathBuf},
@@ -45,7 +120,7 @@ use grammar::{Grammar, GrammarError, GrammarType};
 use token::{Token, TokenSet};
 use utils::{automaton::DetAutomaton, SnakeCase};
 
-#[proc_macro_derive(RegularGrammar, attributes(cache, buffer))]
+#[proc_macro_derive(RegularGrammar, attributes(cache, sized))]
 #[proc_macro_error]
 pub fn derive_regular_grammar(input_tokens: proc_macro::TokenStream) -> proc_macro::TokenStream {
 	let input = parse_macro_input!(input_tokens as DeriveInput);
@@ -256,26 +331,15 @@ fn extract_grammar_data(
 								let mut attrs_rest = Vec::with_capacity(input.attrs.len());
 								for attr in input.attrs {
 									if attr.meta.path().is_ident("cache") {
-										match attr.meta {
-											syn::Meta::NameValue(meta) => {
-												if meta.path.is_ident("cache") {
-													match &meta.value {
-														syn::Expr::Lit(syn::ExprLit {
-															lit: syn::Lit::Str(value),
-															..
-														}) => {
-															cache_path =
-																Some(Ok(value.value().into()))
-														}
-														_ => {
-															return Err((
-																Error::InvalidCachePath,
-																meta.span(),
-															))
-														}
-													}
-												}
-											}
+										let span = attr.span();
+										let path: PathBuf = match attr.meta {
+											syn::Meta::NameValue(meta) => match &meta.value {
+												syn::Expr::Lit(syn::ExprLit {
+													lit: syn::Lit::Str(value),
+													..
+												}) => value.value().into(),
+												_ => return Err((Error::InvalidCachePath, span)),
+											},
 											syn::Meta::List(list) => {
 												let span = list.span();
 												let value: syn::LitStr = syn::parse2(list.tokens)
@@ -283,16 +347,18 @@ fn extract_grammar_data(
 													(Error::InvalidCachePath, span)
 												})?;
 
-												cache_path = Some(Ok(value.value().into()))
+												value.value().into()
 											}
-											_ => {
-												return Err((
-													Error::InvalidCachePath,
-													attr.meta.span(),
-												))
-											}
+											_ => return Err((Error::InvalidCachePath, span)),
+										};
+
+										// Check that the path is relative, without `..`.
+										if path.is_relative() && path.iter().all(|s| s != "..") {
+											cache_path = Some(Ok(path))
+										} else {
+											return Err((Error::InvalidCachePath, span));
 										}
-									} else if attr.meta.path().is_ident("buffer") {
+									} else if attr.meta.path().is_ident("sized") {
 										match attr.meta {
 											syn::Meta::List(list) => {
 												buffer = Some(
@@ -567,19 +633,19 @@ fn generate_typed<T: Token>(
 			tokens.extend(quote! {
 				impl ::core::cmp::PartialEq for #buffer_ident {
 					fn eq(&self, other: &Self) -> bool {
-						self.#as_ref() == other.#as_ref()
+						<#ident as::core::cmp::PartialEq>::eq(self.#as_ref(), other.#as_ref())
 					}
 				}
 
 				impl ::core::cmp::PartialEq<#ident> for #buffer_ident {
 					fn eq(&self, other: &#ident) -> bool {
-						self.#as_ref() == other
+						<#ident as::core::cmp::PartialEq>::eq(self.#as_ref(), other)
 					}
 				}
 
 				impl<'a> ::core::cmp::PartialEq<&'a #ident> for #buffer_ident {
 					fn eq(&self, other: &&'a #ident) -> bool {
-						self.#as_ref() == *other
+						<#ident as::core::cmp::PartialEq>::eq(self.#as_ref(), *other)
 					}
 				}
 			});
@@ -587,8 +653,50 @@ fn generate_typed<T: Token>(
 
 		if buffer.derives.eq {
 			tokens.extend(quote! {
-				impl ::core::cmp::Eq for #buffer_ident where #ident: ::core::cmp::Eq {}
+				impl ::core::cmp::Eq for #buffer_ident {}
 			});
+		}
+
+		if buffer.derives.partial_ord {
+			tokens.extend(quote! {
+				impl ::core::cmp::PartialOrd for #buffer_ident {
+					fn partial_cmp(&self, other: &Self) -> Option<::core::cmp::Ordering> {
+						<#ident as::core::cmp::PartialOrd>::partial_cmp(self.#as_ref(), other.#as_ref())
+					}
+				}
+
+				impl ::core::cmp::PartialOrd<#ident> for #buffer_ident {
+					fn partial_cmp(&self, other: &#ident) -> Option<::core::cmp::Ordering> {
+						<#ident as::core::cmp::PartialOrd>::partial_cmp(self.#as_ref(), other)
+					}
+				}
+
+				impl<'a> ::core::cmp::PartialOrd<&'a #ident> for #buffer_ident {
+					fn partial_cmp(&self, other: &&'a #ident) -> Option<::core::cmp::Ordering> {
+						<#ident as::core::cmp::PartialOrd>::partial_cmp(self.#as_ref(), *other)
+					}
+				}
+			});
+
+			if buffer.derives.ord {
+				tokens.extend(quote! {
+					impl ::core::cmp::Ord for #buffer_ident {
+						fn cmp(&self, other: &Self) -> ::core::cmp::Ordering {
+							<#ident as::core::cmp::Ord>::cmp(self.#as_ref(), other.#as_ref())
+						}
+					}
+				});
+			}
+
+			if buffer.derives.hash {
+				tokens.extend(quote! {
+					impl ::core::hash::Hash for #buffer_ident {
+						fn hash<H: ::core::hash::Hasher>(&self, state: &mut H) {
+							<#ident as::core::hash::Hash>::hash(self.#as_ref(), state)
+						}
+					}
+				});
+			}
 		}
 	}
 

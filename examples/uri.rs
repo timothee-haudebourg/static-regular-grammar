@@ -64,7 +64,7 @@ use static_regular_grammar::RegularGrammar;
 /// ```
 #[derive(RegularGrammar, PartialEq, Eq)]
 #[cache("target/examples/uri.automaton.cbor")]
-#[buffer(AuthorityBuf, derive(PartialEq, Eq))]
+#[sized(AuthorityBuf, derive(PartialEq, Eq))]
 pub struct Authority([u8]);
 
 fn main() {

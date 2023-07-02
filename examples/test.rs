@@ -7,7 +7,8 @@ use static_regular_grammar::RegularGrammar;
 /// ```abnf
 /// test = "%" / "$"
 /// ```
-#[derive(RegularGrammar)]
+#[derive(RegularGrammar, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[sized(TestBuf, derive(PartialEq, Eq, PartialOrd, Ord, Hash))]
 pub struct Test([u8]);
 
 fn main() {
