@@ -67,6 +67,8 @@
 //! ```
 //!
 //! The supported traits are:
+//! - `Debug`
+//! - `Display`
 //! - `PartialEq`
 //! - `Eq`
 //! - `PartialOrd`
@@ -233,6 +235,8 @@ struct GrammarData {
 
 #[derive(Default)]
 struct Derives {
+	debug: bool,
+	display: bool,
 	partial_eq: bool,
 	eq: bool,
 	partial_ord: bool,
@@ -271,6 +275,13 @@ impl BufferOptions {
 						for token in group.stream() {
 							match token {
 								TokenTree::Punct(_) => (),
+								TokenTree::Ident(ident) if ident == "Debug" => derives.debug = true,
+								TokenTree::Ident(ident) if ident == "Display" => {
+									derives.display = true
+								}
+								TokenTree::Ident(ident) if ident == "PartialEq" => {
+									derives.partial_eq = true
+								}
 								TokenTree::Ident(ident) if ident == "PartialEq" => {
 									derives.partial_eq = true
 								}
@@ -629,23 +640,43 @@ fn generate_typed<T: Token>(
 			}
 		});
 
+		if buffer.derives.debug {
+			tokens.extend(quote! {
+				impl ::core::fmt::Debug for #buffer_ident {
+					fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+						<#ident as ::core::fmt::Debug>::fmt(self.#as_ref(), f)
+					}
+				}
+			});
+		}
+
+		if buffer.derives.display {
+			tokens.extend(quote! {
+				impl ::core::fmt::Display for #buffer_ident {
+					fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+						<#ident as ::core::fmt::Display>::fmt(self.#as_ref(), f)
+					}
+				}
+			});
+		}
+
 		if buffer.derives.partial_eq {
 			tokens.extend(quote! {
 				impl ::core::cmp::PartialEq for #buffer_ident {
 					fn eq(&self, other: &Self) -> bool {
-						<#ident as::core::cmp::PartialEq>::eq(self.#as_ref(), other.#as_ref())
+						<#ident as ::core::cmp::PartialEq>::eq(self.#as_ref(), other.#as_ref())
 					}
 				}
 
 				impl ::core::cmp::PartialEq<#ident> for #buffer_ident {
 					fn eq(&self, other: &#ident) -> bool {
-						<#ident as::core::cmp::PartialEq>::eq(self.#as_ref(), other)
+						<#ident as ::core::cmp::PartialEq>::eq(self.#as_ref(), other)
 					}
 				}
 
 				impl<'a> ::core::cmp::PartialEq<&'a #ident> for #buffer_ident {
 					fn eq(&self, other: &&'a #ident) -> bool {
-						<#ident as::core::cmp::PartialEq>::eq(self.#as_ref(), *other)
+						<#ident as ::core::cmp::PartialEq>::eq(self.#as_ref(), *other)
 					}
 				}
 			});
@@ -661,19 +692,19 @@ fn generate_typed<T: Token>(
 			tokens.extend(quote! {
 				impl ::core::cmp::PartialOrd for #buffer_ident {
 					fn partial_cmp(&self, other: &Self) -> Option<::core::cmp::Ordering> {
-						<#ident as::core::cmp::PartialOrd>::partial_cmp(self.#as_ref(), other.#as_ref())
+						<#ident as ::core::cmp::PartialOrd>::partial_cmp(self.#as_ref(), other.#as_ref())
 					}
 				}
 
 				impl ::core::cmp::PartialOrd<#ident> for #buffer_ident {
 					fn partial_cmp(&self, other: &#ident) -> Option<::core::cmp::Ordering> {
-						<#ident as::core::cmp::PartialOrd>::partial_cmp(self.#as_ref(), other)
+						<#ident as ::core::cmp::PartialOrd>::partial_cmp(self.#as_ref(), other)
 					}
 				}
 
 				impl<'a> ::core::cmp::PartialOrd<&'a #ident> for #buffer_ident {
 					fn partial_cmp(&self, other: &&'a #ident) -> Option<::core::cmp::Ordering> {
-						<#ident as::core::cmp::PartialOrd>::partial_cmp(self.#as_ref(), *other)
+						<#ident as ::core::cmp::PartialOrd>::partial_cmp(self.#as_ref(), *other)
 					}
 				}
 			});
@@ -682,7 +713,7 @@ fn generate_typed<T: Token>(
 				tokens.extend(quote! {
 					impl ::core::cmp::Ord for #buffer_ident {
 						fn cmp(&self, other: &Self) -> ::core::cmp::Ordering {
-							<#ident as::core::cmp::Ord>::cmp(self.#as_ref(), other.#as_ref())
+							<#ident as ::core::cmp::Ord>::cmp(self.#as_ref(), other.#as_ref())
 						}
 					}
 				});
@@ -692,7 +723,7 @@ fn generate_typed<T: Token>(
 				tokens.extend(quote! {
 					impl ::core::hash::Hash for #buffer_ident {
 						fn hash<H: ::core::hash::Hasher>(&self, state: &mut H) {
-							<#ident as::core::hash::Hash>::hash(self.#as_ref(), state)
+							<#ident as ::core::hash::Hash>::hash(self.#as_ref(), state)
 						}
 					}
 				});

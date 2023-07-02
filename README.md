@@ -75,6 +75,8 @@ type using the `derive` sub-attribute.
 ```
 
 The supported traits are:
+- `Debug`
+- `Display`
 - `PartialEq`
 - `Eq`
 - `PartialOrd`
