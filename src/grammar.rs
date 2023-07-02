@@ -1,4 +1,4 @@
-use std::{borrow::Cow, path::PathBuf};
+use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
@@ -64,18 +64,6 @@ pub enum FileError {
 	Deserialization(#[from] ciborium::de::Error<std::io::Error>),
 }
 
-fn find_target_dir() -> Result<Cow<'static, str>, std::env::VarError> {
-	match std::env::var("OUT_DIR") {
-		Ok(dir) => Ok(Cow::Owned(dir)),
-		Err(std::env::VarError::NotPresent) => match std::env::var("CARGO_TARGET_DIR") {
-			Ok(dir) => Ok(Cow::Owned(dir)),
-			Err(std::env::VarError::NotPresent) => Ok(Cow::Borrowed("target")),
-			Err(e) => Err(e),
-		},
-		Err(e) => Err(e),
-	}
-}
-
 #[derive(Deserialize)]
 struct CachedAutomaton<T: Token> {
 	hash: [u8; 32],
@@ -101,11 +89,8 @@ impl<T: Token> Grammar<T> {
 		}
 	}
 
-	pub fn load_from_file(basename: &str, hash: &[u8; 32]) -> Result<Option<Self>, FileError> {
-		let target = find_target_dir()?;
-		let filename: PathBuf = format!("{target}/regular-grammar/{basename}.cbor").into();
-		std::fs::create_dir_all(filename.parent().unwrap())?;
-		match std::fs::File::open(&filename) {
+	pub fn load_from_file(filename: &Path, hash: &[u8; 32]) -> Result<Option<Self>, FileError> {
+		match std::fs::File::open(filename) {
 			Ok(file) => {
 				let input = std::io::BufReader::new(file);
 				let cached: CachedAutomaton<T> = ciborium::from_reader(input)?;
@@ -122,14 +107,15 @@ impl<T: Token> Grammar<T> {
 	}
 
 	pub fn save_to_file(
-		basename: &str,
+		filename: &Path,
 		hash: [u8; 32],
 		automaton: &DetAutomaton<u32, T::Set>,
 	) -> Result<(), FileError> {
-		let target = find_target_dir()?;
-		let filename: PathBuf = format!("{target}/regular-grammar/{basename}.cbor").into();
-		std::fs::create_dir_all(filename.parent().unwrap())?;
-		let file = std::fs::File::create(&filename)?;
+		if let Some(parent) = filename.parent() {
+			std::fs::create_dir_all(parent)?;
+		}
+
+		let file = std::fs::File::create(filename)?;
 		let output = std::io::BufWriter::new(file);
 		Ok(ciborium::into_writer(
 			&CachedAutomatonRef::<T>::new(hash, automaton),

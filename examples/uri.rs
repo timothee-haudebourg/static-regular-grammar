@@ -63,7 +63,7 @@ use static_regular_grammar::RegularGrammar;
 /// pct-encoded = "%" HEXDIG HEXDIG
 /// ```
 #[derive(RegularGrammar, PartialEq, Eq)]
-#[title = "uri:authority"]
+#[cache("target/examples/uri.automaton.cbor")]
 #[buffer(AuthorityBuf, derive(PartialEq, Eq))]
 pub struct Authority([u8]);
 

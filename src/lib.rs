@@ -21,6 +21,11 @@
 //!
 //! let foo = Foo::new(b"foooooo").unwrap();
 //! ```
+use std::{
+	borrow::Cow,
+	path::{Path, PathBuf},
+};
+
 use indoc::formatdoc;
 use proc_macro2::{Ident, Span, TokenStream, TokenTree};
 use proc_macro_error::{abort, proc_macro_error};
@@ -40,7 +45,7 @@ use grammar::{Grammar, GrammarError, GrammarType};
 use token::{Token, TokenSet};
 use utils::{automaton::DetAutomaton, SnakeCase};
 
-#[proc_macro_derive(RegularGrammar, attributes(title, buffer))]
+#[proc_macro_derive(RegularGrammar, attributes(cache, buffer))]
 #[proc_macro_error]
 pub fn derive_regular_grammar(input_tokens: proc_macro::TokenStream) -> proc_macro::TokenStream {
 	let input = parse_macro_input!(input_tokens as DeriveInput);
@@ -89,13 +94,16 @@ pub(crate) enum Error {
 	InconsistentGrammarType,
 
 	#[error("invalid title value")]
-	InvalidTitleValue,
+	InvalidCachePath,
 
 	#[error("`buffer` attribute error: {0}")]
 	BufferAttribute(#[from] BufferAttributeError),
 
 	#[error(transparent)]
 	Grammar(GrammarError),
+
+	#[error("target directory not found: {0}")]
+	TargetDirNotFound(std::env::VarError),
 }
 
 enum TokenType {
@@ -128,11 +136,23 @@ impl TokenType {
 	}
 }
 
+fn find_target_dir() -> Result<Cow<'static, str>, std::env::VarError> {
+	match std::env::var("OUT_DIR") {
+		Ok(dir) => Ok(Cow::Owned(dir)),
+		Err(std::env::VarError::NotPresent) => match std::env::var("CARGO_TARGET_DIR") {
+			Ok(dir) => Ok(Cow::Owned(dir)),
+			Err(std::env::VarError::NotPresent) => Ok(Cow::Borrowed("target")),
+			Err(e) => Err(e),
+		},
+		Err(e) => Err(e),
+	}
+}
+
 struct GrammarData {
 	vis: syn::Visibility,
 	ident: Ident,
 	buffer: Option<BufferOptions>,
-	title: String,
+	cache_path: PathBuf,
 	token: TokenType,
 }
 
@@ -230,32 +250,44 @@ fn extract_grammar_data(
 						Some(f) => Err((Error::UnexpectedUnnamedField, f.span())),
 						None => match field.vis {
 							syn::Visibility::Inherited => {
-								let mut title = None;
+								let mut cache_path = None;
 								let mut buffer = None;
 
 								let mut attrs_rest = Vec::with_capacity(input.attrs.len());
 								for attr in input.attrs {
-									if attr.meta.path().is_ident("title") {
+									if attr.meta.path().is_ident("cache") {
 										match attr.meta {
 											syn::Meta::NameValue(meta) => {
-												if meta.path.is_ident("title") {
+												if meta.path.is_ident("cache") {
 													match &meta.value {
 														syn::Expr::Lit(syn::ExprLit {
 															lit: syn::Lit::Str(value),
 															..
-														}) => title = Some(value.value()),
+														}) => {
+															cache_path =
+																Some(Ok(value.value().into()))
+														}
 														_ => {
 															return Err((
-																Error::InvalidTitleValue,
+																Error::InvalidCachePath,
 																meta.span(),
 															))
 														}
 													}
 												}
 											}
+											syn::Meta::List(list) => {
+												let span = list.span();
+												let value: syn::LitStr = syn::parse2(list.tokens)
+													.map_err(|_| {
+													(Error::InvalidCachePath, span)
+												})?;
+
+												cache_path = Some(Ok(value.value().into()))
+											}
 											_ => {
 												return Err((
-													Error::InvalidTitleValue,
+													Error::InvalidCachePath,
 													attr.meta.span(),
 												))
 											}
@@ -275,14 +307,25 @@ fn extract_grammar_data(
 									}
 								}
 
-								let title = title.unwrap_or_else(|| input.ident.to_string());
+								let cache_path = cache_path
+									.unwrap_or_else(|| {
+										let target = find_target_dir()?;
+										Ok(format!(
+											"{target}/regular-grammar/{}.automaton.cbor",
+											input.ident
+										)
+										.into())
+									})
+									.map_err(|e| {
+										(Error::TargetDirNotFound(e), input.ident.span())
+									})?;
 
 								Ok((
 									GrammarData {
 										vis: input.vis,
 										ident: input.ident,
 										buffer,
-										title,
+										cache_path,
 										token: TokenType::from_type(field.ty)?,
 									},
 									attrs_rest,
@@ -301,7 +344,7 @@ fn extract_grammar_data(
 }
 
 fn extract_grammar<T: Token>(
-	title: &str,
+	cache_path: &Path,
 	attrs: Vec<syn::Attribute>,
 ) -> Result<(Grammar<T>, [u8; 32]), (Error, Span)> {
 	let mut grammar_ty = None;
@@ -371,7 +414,7 @@ fn extract_grammar<T: Token>(
 		Some(grammar_ty) => {
 			let hash: [u8; 32] = Sha256::digest(&grammar_data).into();
 
-			let grammar = match Grammar::load_from_file(title, &hash) {
+			let grammar = match Grammar::load_from_file(cache_path, &hash) {
 				Ok(Some(grammar)) => Some(Ok(grammar)),
 				Ok(None) => None,
 				Err(e) => {
@@ -408,12 +451,12 @@ fn generate_typed<T: Token>(
 	data: GrammarData,
 	attrs: Vec<syn::Attribute>,
 ) -> Result<TokenStream, (Error, Span)> {
-	let (grammar, hash) = extract_grammar::<T>(&data.title, attrs)?;
+	let (grammar, hash) = extract_grammar::<T>(&data.cache_path, attrs)?;
 	let cached = grammar.is_cached();
 	let automaton = grammar.build_automaton();
 
 	if !cached {
-		if let Err(e) = Grammar::<T>::save_to_file(&data.title, hash, &automaton) {
+		if let Err(e) = Grammar::<T>::save_to_file(&data.cache_path, hash, &automaton) {
 			eprintln!("unable to cache regular automaton: {e}")
 		}
 	}

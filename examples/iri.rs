@@ -72,7 +72,7 @@ use static_regular_grammar::RegularGrammar;
 /// pct-encoded = "%" HEXDIG HEXDIG
 /// ```
 #[derive(RegularGrammar, PartialEq, Eq)]
-#[title = "iri:authority"]
+#[cache("target/examples/iri.automaton.cbor")]
 #[buffer(AuthorityBuf, derive(PartialEq, Eq))]
 pub struct Authority(str);
 
