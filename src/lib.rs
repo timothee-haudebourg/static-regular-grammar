@@ -382,6 +382,7 @@ fn generate_typed<T: Token>(
 		let owned_string_type = T::rust_owned_string_type();
 
 		tokens.extend(quote! {
+			#[derive(Clone)]
 			#vis struct #buffer_ident(#owned_string_type);
 
 			impl #buffer_ident {
@@ -423,6 +424,16 @@ fn generate_typed<T: Token>(
 			impl ::core::convert::AsRef<#ident> for #buffer_ident {
 				fn as_ref(&self) -> &#ident {
 					self.#as_ref()
+				}
+			}
+
+			impl ::std::borrow::ToOwned for #ident {
+				type Owned = #buffer_ident;
+
+				fn to_owned(&self) -> #buffer_ident {
+					#buffer_ident::new_unchecked(unsafe {
+						self.0.to_owned()
+					})
 				}
 			}
 		});
