@@ -1,0 +1,23 @@
+[package]
+name = "static-regular-grammar"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+# btree-range-map = "0.5.2"
+btree-range-map = { path = "/home/timothee/Projets/utils/data-structures/btree-range-map", features = ["serde"] }
+proc-macro2 = "1.0.60"
+proc-macro-error = "1.0.4"
+syn = "2.0.18"
+quote = "1.0.29"
+thiserror = "1.0.40"
+abnf = "0.13.0"
+indoc = "2.0.1"
+serde = { version = "1.0.164", features = ["derive"] }
+# serde_json = "1.0.99"
+ciborium = "0.2.1"
+sha2 = "0.10.7"
+hex_fmt = "0.3.0"
