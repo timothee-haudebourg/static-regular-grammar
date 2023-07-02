@@ -431,9 +431,11 @@ fn generate_typed<T: Token>(
 				type Owned = #buffer_ident;
 
 				fn to_owned(&self) -> #buffer_ident {
-					#buffer_ident::new_unchecked(unsafe {
-						self.0.to_owned()
-					})
+					unsafe {
+						#buffer_ident::new_unchecked(
+							self.0.to_owned()
+						)
+					}
 				}
 			}
 		});
