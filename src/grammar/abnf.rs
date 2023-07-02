@@ -520,19 +520,19 @@ fn define_core_rules<'a, T: Token>() -> (Vec<NonTerminal<T>>, HashMap<&'a str, u
 }
 
 impl<T: Token> Grammar<T> {
-	pub fn new(data: String) -> Result<Self, GrammarError> {
+	pub fn new(data: String, entry_point: Option<&str>) -> Result<Self, GrammarError> {
 		let rules = abnf::rulelist(&data).map_err(GrammarError::Abnf)?;
 
 		let (mut non_terminals, mut by_name) = define_core_rules::<T>();
 		// let (mut non_terminals, mut by_name) = no_core_rules::<T>();
-		let mut entry_point = None;
+		let mut entry_point_index = None;
 
 		for rule in &rules {
 			if rule.kind() == Kind::Basic {
 				let i = non_terminals.len();
 
-				if entry_point.is_none() {
-					entry_point = Some(i)
+				if entry_point_index.is_none() {
+					entry_point_index = Some(i)
 				}
 
 				non_terminals.push(NonTerminal::default());
@@ -550,9 +550,16 @@ impl<T: Token> Grammar<T> {
 			non_terminals[i].constructors.push(node);
 		}
 
+		if let Some(name) = entry_point {
+			let i = *by_name
+				.get(name)
+				.ok_or_else(|| GrammarError::UndefinedNonTerminal(name.to_string()))?;
+			entry_point_index = Some(i)
+		}
+
 		Self::from_non_terminals(
 			non_terminals,
-			entry_point.ok_or(GrammarError::NoEntryPoint)?,
+			entry_point_index.ok_or(GrammarError::NoEntryPoint)?,
 		)
 	}
 

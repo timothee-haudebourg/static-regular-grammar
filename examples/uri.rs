@@ -63,8 +63,10 @@ use static_regular_grammar::RegularGrammar;
 /// pct-encoded = "%" HEXDIG HEXDIG
 /// ```
 #[derive(RegularGrammar, PartialEq, Eq)]
-#[cache("target/examples/uri.automaton.cbor")]
-#[sized(AuthorityBuf, derive(PartialEq, Eq))]
+#[grammar(
+	cache = "target/examples/uri.automaton.cbor",
+	sized(AuthorityBuf, derive(PartialEq, Eq))
+)]
 pub struct Authority([u8]);
 
 fn main() {

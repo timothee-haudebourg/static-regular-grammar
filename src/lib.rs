@@ -1,8 +1,8 @@
 //! This library provides the handy `RegularGrammar` derive macro that helps you
 //! create unsized type wrapping byte or char strings validated by a regular
-//! grammar. It works by parsing a grammar specified in the documentation of
-//! your type, statically compiling it into a deterministic, minimal, regular
-//! automaton then translated into a Rust validation function.
+//! grammar. It works by parsing a grammar specified in a file or the
+//! documentation of your type, statically compiling it into a deterministic,
+//! minimal, regular automaton then translated into a Rust validation function.
 //!
 //! For now, only the [ABNF] grammar format is supported.
 //!
@@ -32,12 +32,42 @@
 //! let foo = Foo::new(b"foooooo").unwrap();
 //! ```
 //!
+//! The derive macro also provides a `grammar` attribute to configure the
+//! grammar and the generated code. With this attribute, instead of using the
+//! documentation, you can specify a path to a file containing the grammar:
+//!
+//! ```
+//! # use static_regular_grammar::RegularGrammar;
+//! /// Example grammar.
+//! #[derive(RegularGrammar)]
+//! #[grammar(file = "examples/test.abnf")]
+//! pub struct Foo([u8]);
+//!
+//! let foo = Foo::new(b"foooooo").unwrap();
+//! ```
+//!
+//! # Grammar Entry Point
+//!
+//! By default the first non-terminal defined in the grammar is used as entry
+//! point. You can specify a different entry point using the `entry_point`
+//! sub-attribute of the `grammar` attribute:
+//!
+//! ```
+//! # use static_regular_grammar::RegularGrammar;
+//! /// Example grammar.
+//! #[derive(RegularGrammar)]
+//! #[grammar(file = "examples/test.abnf", entry_point = "bar")]
+//! pub struct Bar([u8]);
+//!
+//! let bar = Bar::new(b"baaaar").unwrap();
+//! ```
+//!
 //! # Sized Type
 //!
 //! The `RegularGrammar` macro works on unsized type, but it is often useful
 //! to have an sized equivalent that can own the data while still guaranteeing
 //! the validity of the data. The derive macro can do that for you using the
-//! `sized` attribute.
+//! `sized` sub-attribute of the `grammar` attribute.
 //!
 //! ```
 //! # use static_regular_grammar::RegularGrammar;
@@ -47,7 +77,7 @@
 //! /// foo = "f" 1*("oo")
 //! /// ```
 //! #[derive(RegularGrammar)]
-//! #[sized(FooBuf)] // this will generate a `FooBuf` type.
+//! #[grammar(sized(FooBuf))] // this will generate a `FooBuf` type.
 //! pub struct Foo([u8]);
 //!
 //! let foo = FooBuf::new(b"foooooo".to_vec()).unwrap();
@@ -63,7 +93,7 @@
 //! type using the `derive` sub-attribute.
 //!
 //! ```ignore
-//! #[sized(FooBuf, derive(PartialEq, Eq))]
+//! #[grammar(sized(FooBuf, derive(PartialEq, Eq)))]
 //! ```
 //!
 //! The supported traits are:
@@ -86,10 +116,10 @@
 //! in the `target` folder, as `regular-grammar/TypeName.automaton.cbor`. For
 //! instance, in the example above the path will be
 //! `target/regular-grammar/Foo.automaton.cbor`.
-//! You can specify the file path yourself using the `cache` attribute:
+//! You can specify the file path yourself using the `cache` sub-attribute:
 //!
 //! ```ignore
-//! #[cache("path/to/cache.automaton.cbor")]
+//! #[grammar(cache = "path/to/cache.automaton.cbor")]
 //! ```
 //!
 //! The path must be relative, and must not include `..` segments.
@@ -98,31 +128,29 @@
 //! For large grammars, it might be a good idea to cache the automaton directly
 //! with the sources, and ship it with your library/application to reduce
 //! compilation time on the user machine.
-use std::{
-	borrow::Cow,
-	path::{Path, PathBuf},
-};
-
 use indoc::formatdoc;
-use proc_macro2::{Ident, Span, TokenStream, TokenTree};
+use proc_macro2::{Ident, Span, TokenStream};
 use proc_macro_error::{abort, proc_macro_error};
 use quote::{format_ident, quote};
-use sha2::{Digest, Sha256};
 use syn::{parse_macro_input, spanned::Spanned, Data, DeriveInput};
 
+mod attribute;
 mod byteset;
 mod charset;
 mod grammar;
+mod options;
 mod token;
 mod utils;
 
+use attribute::Attribute;
 use byteset::ByteSet;
 use charset::CharSet;
-use grammar::{Grammar, GrammarError, GrammarType};
+use grammar::{extract_grammar, Grammar, GrammarError};
+use options::*;
 use token::{Token, TokenSet};
 use utils::{automaton::DetAutomaton, SnakeCase};
 
-#[proc_macro_derive(RegularGrammar, attributes(cache, sized))]
+#[proc_macro_derive(RegularGrammar, attributes(grammar))]
 #[proc_macro_error]
 pub fn derive_regular_grammar(input_tokens: proc_macro::TokenStream) -> proc_macro::TokenStream {
 	let input = parse_macro_input!(input_tokens as DeriveInput);
@@ -155,32 +183,23 @@ pub(crate) enum Error {
 	#[error("unexpected unnamed field")]
 	UnexpectedUnnamedField,
 
-	#[error("invalid documentation attribute")]
-	InvalidDocumentation,
-
-	#[error("missing grammar")]
-	MissingGrammar,
-
 	#[error("unsafe visibility")]
 	UnsafeVisibility,
 
 	#[error("invalid inner type")]
 	InvalidInnerType,
 
-	#[error("inconsistent grammar type")]
-	InconsistentGrammarType,
-
-	#[error("invalid title value")]
-	InvalidCachePath,
-
-	#[error("`buffer` attribute error: {0}")]
-	BufferAttribute(#[from] BufferAttributeError),
+	#[error("`grammar` attribute error: {0}")]
+	Attribute(#[from] attribute::Error),
 
 	#[error(transparent)]
 	Grammar(GrammarError),
 
 	#[error("target directory not found: {0}")]
 	TargetDirNotFound(std::env::VarError),
+
+	#[error("missing sized type identifier")]
+	MissingSizedTypeIdent,
 }
 
 enum TokenType {
@@ -213,111 +232,11 @@ impl TokenType {
 	}
 }
 
-fn find_target_dir() -> Result<Cow<'static, str>, std::env::VarError> {
-	match std::env::var("OUT_DIR") {
-		Ok(dir) => Ok(Cow::Owned(dir)),
-		Err(std::env::VarError::NotPresent) => match std::env::var("CARGO_TARGET_DIR") {
-			Ok(dir) => Ok(Cow::Owned(dir)),
-			Err(std::env::VarError::NotPresent) => Ok(Cow::Borrowed("target")),
-			Err(e) => Err(e),
-		},
-		Err(e) => Err(e),
-	}
-}
-
 struct GrammarData {
 	vis: syn::Visibility,
 	ident: Ident,
-	buffer: Option<BufferOptions>,
-	cache_path: PathBuf,
 	token: TokenType,
-}
-
-#[derive(Default)]
-struct Derives {
-	debug: bool,
-	display: bool,
-	partial_eq: bool,
-	eq: bool,
-	partial_ord: bool,
-	ord: bool,
-	hash: bool,
-}
-
-struct BufferOptions {
-	ident: Ident,
-	derives: Derives,
-}
-
-#[derive(Debug, thiserror::Error)]
-enum BufferAttributeError {
-	#[error("unexpected token {0}")]
-	UnexpectedToken(TokenTree),
-
-	#[error("expected parenthesized list")]
-	UnexpectedList,
-
-	#[error("missing identifier")]
-	MissingIdent,
-}
-
-impl BufferOptions {
-	pub fn parse(span: Span, tokens: TokenStream) -> Result<Self, (BufferAttributeError, Span)> {
-		let mut tokens = tokens.into_iter();
-
-		let mut ident = None;
-		let mut derives = Derives::default();
-
-		while let Some(token) = tokens.next() {
-			match token {
-				TokenTree::Ident(id) if id == "derive" => match tokens.next() {
-					Some(TokenTree::Group(group)) => {
-						for token in group.stream() {
-							match token {
-								TokenTree::Punct(_) => (),
-								TokenTree::Ident(ident) if ident == "Debug" => derives.debug = true,
-								TokenTree::Ident(ident) if ident == "Display" => {
-									derives.display = true
-								}
-								TokenTree::Ident(ident) if ident == "PartialEq" => {
-									derives.partial_eq = true
-								}
-								TokenTree::Ident(ident) if ident == "PartialEq" => {
-									derives.partial_eq = true
-								}
-								TokenTree::Ident(ident) if ident == "Eq" => derives.eq = true,
-								TokenTree::Ident(ident) if ident == "PartialOrd" => {
-									derives.partial_ord = true
-								}
-								TokenTree::Ident(ident) if ident == "Ord" => derives.ord = true,
-								TokenTree::Ident(ident) if ident == "Hash" => derives.hash = true,
-								tt => {
-									let span = tt.span();
-									return Err((BufferAttributeError::UnexpectedToken(tt), span));
-								}
-							}
-						}
-					}
-					Some(tt) => {
-						let span = tt.span();
-						return Err((BufferAttributeError::UnexpectedToken(tt), span));
-					}
-					None => return Err((BufferAttributeError::UnexpectedList, span)),
-				},
-				TokenTree::Ident(id) => ident = Some(id),
-				TokenTree::Punct(_) => (),
-				tt => {
-					let span = tt.span();
-					return Err((BufferAttributeError::UnexpectedToken(tt), span));
-				}
-			}
-		}
-
-		Ok(Self {
-			ident: ident.ok_or((BufferAttributeError::MissingIdent, span))?,
-			derives,
-		})
-	}
+	options: Options,
 }
 
 fn extract_grammar_data(
@@ -336,74 +255,27 @@ fn extract_grammar_data(
 						Some(f) => Err((Error::UnexpectedUnnamedField, f.span())),
 						None => match field.vis {
 							syn::Visibility::Inherited => {
-								let mut cache_path = None;
-								let mut buffer = None;
-
+								let mut grammar_attr = Attribute::default();
 								let mut attrs_rest = Vec::with_capacity(input.attrs.len());
 								for attr in input.attrs {
-									if attr.meta.path().is_ident("cache") {
-										let span = attr.span();
-										let path: PathBuf = match attr.meta {
-											syn::Meta::NameValue(meta) => match &meta.value {
-												syn::Expr::Lit(syn::ExprLit {
-													lit: syn::Lit::Str(value),
-													..
-												}) => value.value().into(),
-												_ => return Err((Error::InvalidCachePath, span)),
-											},
-											syn::Meta::List(list) => {
-												let span = list.span();
-												let value: syn::LitStr = syn::parse2(list.tokens)
-													.map_err(|_| {
-													(Error::InvalidCachePath, span)
-												})?;
-
-												value.value().into()
-											}
-											_ => return Err((Error::InvalidCachePath, span)),
-										};
-
-										// Check that the path is relative, without `..`.
-										if path.is_relative() && path.iter().all(|s| s != "..") {
-											cache_path = Some(Ok(path))
-										} else {
-											return Err((Error::InvalidCachePath, span));
-										}
-									} else if attr.meta.path().is_ident("sized") {
-										match attr.meta {
-											syn::Meta::List(list) => {
-												buffer = Some(
-													BufferOptions::parse(list.span(), list.tokens)
-														.map_err(|(e, span)| (e.into(), span))?,
-												);
-											}
-											_ => todo!(),
-										}
+									if attr.meta.path().is_ident("grammar") {
+										grammar_attr
+											.append(Attribute::parse(attr).map_err(
+												|(e, span)| (Error::Attribute(e), span),
+											)?);
 									} else {
 										attrs_rest.push(attr);
 									}
 								}
 
-								let cache_path = cache_path
-									.unwrap_or_else(|| {
-										let target = find_target_dir()?;
-										Ok(format!(
-											"{target}/regular-grammar/{}.automaton.cbor",
-											input.ident
-										)
-										.into())
-									})
-									.map_err(|e| {
-										(Error::TargetDirNotFound(e), input.ident.span())
-									})?;
+								let options = Options::from_attribute(&input.ident, grammar_attr)?;
 
 								Ok((
 									GrammarData {
 										vis: input.vis,
 										ident: input.ident,
-										buffer,
-										cache_path,
 										token: TokenType::from_type(field.ty)?,
+										options,
 									},
 									attrs_rest,
 								))
@@ -417,97 +289,6 @@ fn extract_grammar_data(
 		},
 		Data::Union(u) => Err((Error::UnexpectedUnion, u.union_token.span())),
 		Data::Enum(e) => Err((Error::UnexpectedEnum, e.enum_token.span())),
-	}
-}
-
-fn extract_grammar<T: Token>(
-	cache_path: &Path,
-	attrs: Vec<syn::Attribute>,
-) -> Result<(Grammar<T>, [u8; 32]), (Error, Span)> {
-	let mut grammar_ty = None;
-	let mut grammar_data = String::new();
-	// let mut span = Span::call_site();
-	let span = Span::call_site();
-	let mut in_block = false;
-
-	for attr in attrs {
-		if let syn::Meta::NameValue(meta) = attr.meta {
-			let meta_span = meta.span();
-			if meta.path.is_ident("doc") {
-				match meta.value {
-					syn::Expr::Lit(syn::ExprLit {
-						lit: syn::Lit::Str(value),
-						..
-					}) => {
-						let value = value.value();
-
-						match grammar_ty {
-							Some(grammar_ty) => {
-								if in_block {
-									if value.trim() == "```" {
-										in_block = false
-									} else if !value.is_empty() {
-										if !value.starts_with(' ') {
-											return Err((Error::InvalidDocumentation, meta_span));
-										}
-
-										// span = span.join(meta_span).unwrap();
-										grammar_data.push_str(&value[1..]);
-										grammar_data.push('\n');
-									}
-								} else {
-									let trimmed = value.trim();
-									if let Some(suffix) = trimmed.strip_prefix("```") {
-										if let Some(new_grammar_ty) =
-											GrammarType::new(suffix.trim())
-										{
-											if new_grammar_ty != grammar_ty {
-												return Err((
-													Error::InconsistentGrammarType,
-													meta_span,
-												));
-											}
-											in_block = true
-										}
-									}
-								}
-							}
-							None => {
-								let trimmed = value.trim();
-								if let Some(suffix) = trimmed.strip_prefix("```") {
-									grammar_ty = GrammarType::new(suffix.trim());
-									in_block = true
-								}
-							}
-						}
-					}
-					_ => return Err((Error::InvalidDocumentation, meta.span())),
-				}
-			}
-		}
-	}
-
-	match grammar_ty {
-		Some(grammar_ty) => {
-			let hash: [u8; 32] = Sha256::digest(&grammar_data).into();
-
-			let grammar = match Grammar::load_from_file(cache_path, &hash) {
-				Ok(Some(grammar)) => Some(Ok(grammar)),
-				Ok(None) => None,
-				Err(e) => {
-					eprintln!("warning: could not load cached automaton: {e}");
-					None
-				}
-			}
-			.unwrap_or_else(|| {
-				Grammar::new(grammar_ty, grammar_data).map_err(|e| (Error::Grammar(e), span))
-			})?;
-
-			// let grammar = Grammar::new(grammar_ty, grammar_data).map_err(|e| (Error::Grammar(e), span))?;
-
-			Ok((grammar, hash))
-		}
-		None => Err((Error::MissingGrammar, Span::call_site())),
 	}
 }
 
@@ -528,12 +309,18 @@ fn generate_typed<T: Token>(
 	data: GrammarData,
 	attrs: Vec<syn::Attribute>,
 ) -> Result<TokenStream, (Error, Span)> {
-	let (grammar, hash) = extract_grammar::<T>(&data.cache_path, attrs)?;
+	let (grammar, hash) = extract_grammar::<T>(
+		&data.options.cache_path,
+		data.options.file.as_deref(),
+		data.options.entry_point.as_deref(),
+		attrs,
+	)
+	.map_err(|(e, span)| (Error::Grammar(e), span))?;
 	let cached = grammar.is_cached();
 	let automaton = grammar.build_automaton();
 
 	if !cached {
-		if let Err(e) = Grammar::<T>::save_to_file(&data.cache_path, hash, &automaton) {
+		if let Err(e) = Grammar::<T>::save_to_file(&data.options.cache_path, hash, &automaton) {
 			eprintln!("unable to cache regular automaton: {e}")
 		}
 	}
@@ -590,7 +377,7 @@ fn generate_typed<T: Token>(
 		}
 	};
 
-	if let Some(buffer) = data.buffer {
+	if let Some(buffer) = data.options.sized {
 		let buffer_ident = buffer.ident;
 		let owned_string_type = T::rust_owned_string_type();
 

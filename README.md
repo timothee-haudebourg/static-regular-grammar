@@ -9,9 +9,9 @@
 
 This library provides the handy `RegularGrammar` derive macro that helps you
 create unsized type wrapping byte or char strings validated by a regular
-grammar. It works by parsing a grammar specified in the documentation of
-your type, statically compiling it into a deterministic, minimal, regular
-automaton then translated into a Rust validation function.
+grammar. It works by parsing a grammar specified in a file or the
+documentation of your type, statically compiling it into a deterministic,
+minimal, regular automaton then translated into a Rust validation function.
 
 For now, only the [ABNF] grammar format is supported.
 
@@ -41,12 +41,40 @@ pub struct Foo([u8]);
 let foo = Foo::new(b"foooooo").unwrap();
 ```
 
+The derive macro also provides a `grammar` attribute to configure the
+grammar and the generated code. With this attribute, instead of using the
+documentation, you can specify a path to a file containing the grammar:
+
+```rust
+/// Example grammar.
+#[derive(RegularGrammar)]
+#[grammar(file = "examples/test.abnf")]
+pub struct Foo([u8]);
+
+let foo = Foo::new(b"foooooo").unwrap();
+```
+
+## Grammar Entry Point
+
+By default the first non-terminal defined in the grammar is used as entry
+point. You can specify a different entry point using the `entry_point`
+sub-attribute of the `grammar` attribute:
+
+```rust
+/// Example grammar.
+#[derive(RegularGrammar)]
+#[grammar(file = "examples/test.abnf", entry_point = "bar")]
+pub struct Bar([u8]);
+
+let bar = Bar::new(b"baaaar").unwrap();
+```
+
 ## Sized Type
 
 The `RegularGrammar` macro works on unsized type, but it is often useful
 to have an sized equivalent that can own the data while still guaranteeing
 the validity of the data. The derive macro can do that for you using the
-`sized` attribute.
+`sized` sub-attribute of the `grammar` attribute.
 
 ```rust
 /// Example grammar, with sized variant.
@@ -55,7 +83,7 @@ the validity of the data. The derive macro can do that for you using the
 /// foo = "f" 1*("oo")
 /// ```
 #[derive(RegularGrammar)]
-#[sized(FooBuf)] // this will generate a `FooBuf` type.
+#[grammar(sized(FooBuf))] // this will generate a `FooBuf` type.
 pub struct Foo([u8]);
 
 let foo = FooBuf::new(b"foooooo".to_vec()).unwrap();
@@ -71,7 +99,7 @@ You can specify what common trait to automatically implement for the sized
 type using the `derive` sub-attribute.
 
 ```rust
-#[sized(FooBuf, derive(PartialEq, Eq))]
+#[grammar(sized(FooBuf, derive(PartialEq, Eq)))]
 ```
 
 The supported traits are:
@@ -94,10 +122,10 @@ changes are made to the grammar. By default, the automaton will be stored
 in the `target` folder, as `regular-grammar/TypeName.automaton.cbor`. For
 instance, in the example above the path will be
 `target/regular-grammar/Foo.automaton.cbor`.
-You can specify the file path yourself using the `cache` attribute:
+You can specify the file path yourself using the `cache` sub-attribute:
 
 ```rust
-#[cache("path/to/cache.automaton.cbor")]
+#[grammar(cache = "path/to/cache.automaton.cbor")]
 ```
 
 The path must be relative, and must not include `..` segments.

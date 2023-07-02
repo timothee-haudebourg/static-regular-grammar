@@ -9,7 +9,7 @@ use std::fmt;
 /// test = "%" / "$"
 /// ```
 #[derive(RegularGrammar, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[sized(TestBuf, derive(Debug, Display, PartialEq, Eq, PartialOrd, Ord, Hash))]
+#[grammar(sized(TestBuf, derive(Debug, Display, PartialEq, Eq, PartialOrd, Ord, Hash)))]
 pub struct Test(str);
 
 impl fmt::Display for Test {
