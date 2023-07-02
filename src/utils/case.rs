@@ -5,11 +5,11 @@ pub struct SnakeCase<'a>(pub &'a str);
 impl<'a> fmt::Display for SnakeCase<'a> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		let mut separate = false;
-		for c in self.0.chars() {
+		for (i, c) in self.0.chars().enumerate() {
 			match c {
 				' ' | '.' | '_' | '-' => separate = true,
 				c => {
-					if c.is_uppercase() {
+					if c.is_uppercase() && i > 0 {
 						separate = true
 					}
 
