@@ -1,6 +1,8 @@
-//! This library provides the `RegularGrammar` macro that helps you create
-//! unsized type wrapping byte or char strings validated by a regular grammar.
-//! For now, only the ABNF grammar format is supported.
+//! This library provides the handy `RegularGrammar` derive macro that helps you
+//! create unsized type wrapping byte or char strings validated by a regular
+//! grammar. For now, only the [ABNF] grammar format is supported.
+//!
+//! [ABNF]: <https://datatracker.ietf.org/doc/html/rfc5234>
 //!
 //! # Example
 //!
@@ -35,7 +37,7 @@ mod utils;
 use byteset::ByteSet;
 use charset::CharSet;
 use grammar::{Grammar, GrammarError, GrammarType};
-use token::{Token, TokenRange};
+use token::{Token, TokenSet};
 use utils::{automaton::DetAutomaton, SnakeCase};
 
 #[proc_macro_derive(RegularGrammar, attributes(title, buffer))]
@@ -550,14 +552,14 @@ fn generate_typed<T: Token>(
 	Ok(tokens)
 }
 
-fn generate_validation_function<T: Token>(automaton: &DetAutomaton<u32, T::Range>) -> TokenStream {
+fn generate_validation_function<T: Token>(automaton: &DetAutomaton<u32, T::Set>) -> TokenStream {
 	let initial_state = *automaton.initial_state();
 
 	let states = automaton.transitions().iter().map(|(q, transitions)| {
-		let transitions = transitions.iter().map(|(range, target)| {
-			let range = T::Range::rust_range(range);
+		let transitions = transitions.iter().map(|(set, target)| {
+			let set = T::Set::rust_set(set);
 			quote! {
-				Some(#range) => #target
+				Some(#set) => #target
 			}
 		});
 

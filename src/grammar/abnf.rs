@@ -783,11 +783,12 @@ impl<T: Token> Grammar<T> {
 		aut
 	}
 
-	pub fn build_automaton(&self) -> DetAutomaton<u32, T::Range> {
+	pub fn build_automaton(&self) -> DetAutomaton<u32, T::Set> {
 		let mut count = 0;
 		let nd_aut = self.build_nd_automaton();
 
 		let det_aut = nd_aut.determinize();
+
 		let simple_aut = DetAutomaton::map(
 			&det_aut,
 			|_| {
@@ -795,7 +796,7 @@ impl<T: Token> Grammar<T> {
 				count += 1;
 				i
 			},
-			|label: &T::Range| *label,
+			|label: &T::Set| label.clone(),
 		);
 
 		let partition = DetAutomaton::partition(&simple_aut, |q| simple_aut.is_final_state(q));
@@ -809,7 +810,7 @@ impl<T: Token> Grammar<T> {
 				count += 1;
 				i
 			},
-			|label: &&T::Range| **label,
+			|label: &T::Set| label.clone(),
 		)
 	}
 }

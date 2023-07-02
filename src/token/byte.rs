@@ -5,7 +5,7 @@ use quote::quote;
 
 use crate::{
 	byteset,
-	utils::{automaton, Sanitized},
+	utils::{automaton, MergeRef, Sanitized},
 	ByteSet,
 };
 
@@ -23,7 +23,6 @@ impl Token for u8 {
 	}
 
 	fn from_char(c: char) -> Option<Self> {
-		eprintln!("from char: {c}");
 		if c.is_ascii() {
 			Some(c as u8)
 		} else {
@@ -32,7 +31,6 @@ impl Token for u8 {
 	}
 
 	fn from_u32(v: u32) -> Option<Self> {
-		eprintln!("from u32 {v}");
 		if v <= 0xff {
 			Some(v as u8)
 		} else {
@@ -69,25 +67,6 @@ impl TokenRange<u8> for AnyRange<u8> {
 	fn peek(&self) -> Option<u8> {
 		self.first()
 	}
-
-	fn rust_range(&self) -> proc_macro2::TokenStream {
-		match self.len() {
-			0 => panic!("empty range"),
-			1 => {
-				let a = self.first().unwrap();
-				quote! {
-					#a
-				}
-			}
-			_ => {
-				let a = self.first().unwrap();
-				let b = self.last().unwrap();
-				quote! {
-					#a..=#b
-				}
-			}
-		}
-	}
 }
 
 impl TokenSet<u8> for ByteSet {
@@ -115,12 +94,31 @@ impl TokenSet<u8> for ByteSet {
 		self.extend(other.ranges())
 	}
 
+	fn rust_set(&self) -> proc_macro2::TokenStream {
+		let ranges = self.ranges().map(|range| match range.len() {
+			0 => panic!("empty range"),
+			1 => {
+				let a = range.first().unwrap();
+				quote! {
+					#a
+				}
+			}
+			_ => {
+				let a = range.first().unwrap();
+				let b = range.last().unwrap();
+				quote! {
+					#a..=#b
+				}
+			}
+		});
+
+		quote! { #(#ranges)|* }
+	}
+}
+
+impl MergeRef for ByteSet {
 	fn merge_with_ref(&mut self, other: &Self) {
 		self.extend(other.ranges())
-	}
-
-	fn insert_range(&mut self, range: <u8 as Token>::Range) {
-		self.insert(range)
 	}
 }
 
@@ -133,6 +131,10 @@ impl automaton::DeterminizeLabel for ByteSet {
 
 	fn ranges(&self) -> Self::Ranges<'_> {
 		ByteSet::ranges(self)
+	}
+
+	fn insert_range(&mut self, range: <u8 as Token>::Range) {
+		self.insert(range)
 	}
 }
 

@@ -3,7 +3,7 @@ use std::{fmt::Debug, hash::Hash};
 
 use serde::{de::DeserializeOwned, Serialize};
 
-use crate::utils::automaton;
+use crate::utils::{automaton, MergeRef};
 
 mod byte;
 mod char;
@@ -36,7 +36,7 @@ pub trait Token: Copy {
 	fn rust_iterator_method() -> proc_macro2::TokenStream;
 }
 
-pub trait TokenRange<T: Token>: Debug + Copy + Ord + Hash + Serialize + DeserializeOwned {
+pub trait TokenRange<T: Token>: Debug + Copy + Ord + Hash {
 	/// Creates a new range starting from `a` (inclusive) to `b` (inclusive).
 	fn new(a: T, b: T) -> Self;
 
@@ -45,12 +45,18 @@ pub trait TokenRange<T: Token>: Debug + Copy + Ord + Hash + Serialize + Deserial
 	}
 
 	fn peek(&self) -> Option<T>;
-
-	fn rust_range(&self) -> proc_macro2::TokenStream;
 }
 
 pub trait TokenSet<T: Token>:
-	Debug + Default + Clone + Ord + automaton::DeterminizeLabel<Range = T::Range>
+	Debug
+	+ Default
+	+ Clone
+	+ Ord
+	+ Hash
+	+ automaton::DeterminizeLabel<Range = T::Range>
+	+ MergeRef
+	+ Serialize
+	+ DeserializeOwned
 {
 	fn singleton(token: T, case_sensitive: bool) -> Self;
 
@@ -70,9 +76,7 @@ pub trait TokenSet<T: Token>:
 
 	fn merge_with(&mut self, other: Self);
 
-	fn merge_with_ref(&mut self, other: &Self);
-
-	fn insert_range(&mut self, range: T::Range);
+	fn rust_set(&self) -> proc_macro2::TokenStream;
 }
 
 pub trait TokenMap<K: Token, V>: Default + IntoIterator<Item = (K::Range, V)> {

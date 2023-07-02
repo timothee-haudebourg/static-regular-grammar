@@ -142,3 +142,7 @@ impl<T> Get2Mut for [T] {
 		}
 	}
 }
+
+pub trait MergeRef {
+	fn merge_with_ref(&mut self, other: &Self);
+}

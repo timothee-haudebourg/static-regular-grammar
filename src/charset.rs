@@ -1,4 +1,5 @@
 use btree_range_map::{AnyRange, RangeSet};
+use serde::{Deserialize, Serialize};
 use std::{
 	fmt,
 	ops::{Deref, DerefMut, RangeInclusive},
@@ -63,7 +64,7 @@ impl<'a> fmt::Display for DisplayCharRange<'a> {
 	}
 }
 
-#[derive(Clone, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct CharSet(RangeSet<char>);
 
 impl CharSet {

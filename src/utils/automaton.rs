@@ -8,7 +8,9 @@ use btree_range_map::AnyRange;
 
 use crate::charset::CharSet;
 
-pub trait DeterminizeLabel {
+use super::MergeRef;
+
+pub trait DeterminizeLabel: Default {
 	type Range: Clone + Ord;
 
 	type Ranges<'a>: 'a + Iterator<Item = Self::Range>
@@ -18,6 +20,8 @@ pub trait DeterminizeLabel {
 	type RangeMap<V: Clone + PartialEq>: RangeMap<Self::Range, V>;
 
 	fn ranges(&self) -> Self::Ranges<'_>;
+
+	fn insert_range(&mut self, range: Self::Range);
 }
 
 pub trait RangeMap<R, V>: Default + IntoIterator<Item = (R, V)> {
@@ -95,8 +99,9 @@ impl<Q: Ord, L: Ord> Automaton<Q, L> {
 		states
 	}
 
-	fn determinize_transitions_for(&self, states: &BTreeSet<&Q>) -> BTreeMap<L::Range, BTreeSet<&Q>>
+	fn determinize_transitions_for(&self, states: &BTreeSet<&Q>) -> BTreeMap<L, BTreeSet<&Q>>
 	where
+		Q: Hash,
 		L: DeterminizeLabel,
 	{
 		let mut map = L::RangeMap::default();
@@ -131,16 +136,22 @@ impl<Q: Ord, L: Ord> Automaton<Q, L> {
 			}
 		}
 
+		let mut by_target: HashMap<BTreeSet<&Q>, L> = HashMap::new();
+
+		for (range, target) in map {
+			by_target.entry(target).or_default().insert_range(range)
+		}
+
 		let mut simplified_map = BTreeMap::new();
 
-		for (range, set) in map {
-			simplified_map.insert(range, set);
+		for (target, set) in by_target {
+			simplified_map.insert(set, target);
 		}
 
 		simplified_map
 	}
 
-	pub fn determinize(&self) -> DetAutomaton<BTreeSet<&Q>, L::Range>
+	pub fn determinize(&self) -> DetAutomaton<BTreeSet<&Q>, L>
 	where
 		Q: Hash,
 		L: DeterminizeLabel,
@@ -280,10 +291,10 @@ impl<Q: Ord, L: Ord> DetAutomaton<Q, L> {
 	/// Minimizes the automaton.
 	// Hopcroft's algorithm.
 	// https://en.wikipedia.org/wiki/DFA_minimization
-	pub fn minimize<'a, P>(&'a self, partition: P) -> DetAutomaton<BTreeSet<&Q>, &L>
+	pub fn minimize<'a, P>(&'a self, partition: P) -> DetAutomaton<BTreeSet<&Q>, L>
 	where
 		Q: Hash,
-		L: Hash,
+		L: Default + Hash + MergeRef,
 		P: Iterator<Item = BTreeSet<&'a Q>>,
 	{
 		let mut partition: BTreeSet<_> = partition.collect();
@@ -347,8 +358,17 @@ impl<Q: Ord, L: Ord> DetAutomaton<Q, L> {
 		}
 
 		for (source, transitions) in &self.transitions {
-			for (range, target) in transitions {
-				result.add(map[source].clone(), range, map[target].clone());
+			let mut by_target: HashMap<BTreeSet<&Q>, L> = HashMap::new();
+
+			for (set, target) in transitions {
+				by_target
+					.entry(map[target].clone())
+					.or_default()
+					.merge_with_ref(set);
+			}
+
+			for (target, set) in by_target {
+				result.add(map[source].clone(), set, target);
 			}
 		}
 

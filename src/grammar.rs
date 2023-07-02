@@ -45,7 +45,7 @@ impl GrammarType {
 }
 
 pub enum Grammar<T: Token> {
-	Cached(DetAutomaton<u32, T::Range>),
+	Cached(DetAutomaton<u32, T::Set>),
 	Abnf(abnf::Grammar<T>),
 }
 
@@ -79,17 +79,17 @@ fn find_target_dir() -> Result<Cow<'static, str>, std::env::VarError> {
 #[derive(Deserialize)]
 struct CachedAutomaton<T: Token> {
 	hash: [u8; 32],
-	automaton: DetAutomaton<u32, T::Range>,
+	automaton: DetAutomaton<u32, T::Set>,
 }
 
 #[derive(Serialize)]
 struct CachedAutomatonRef<'a, T: Token> {
 	hash: [u8; 32],
-	automaton: &'a DetAutomaton<u32, T::Range>,
+	automaton: &'a DetAutomaton<u32, T::Set>,
 }
 
 impl<'a, T: Token> CachedAutomatonRef<'a, T> {
-	pub fn new(hash: [u8; 32], automaton: &'a DetAutomaton<u32, T::Range>) -> Self {
+	pub fn new(hash: [u8; 32], automaton: &'a DetAutomaton<u32, T::Set>) -> Self {
 		Self { hash, automaton }
 	}
 }
@@ -124,7 +124,7 @@ impl<T: Token> Grammar<T> {
 	pub fn save_to_file(
 		basename: &str,
 		hash: [u8; 32],
-		automaton: &DetAutomaton<u32, T::Range>,
+		automaton: &DetAutomaton<u32, T::Set>,
 	) -> Result<(), FileError> {
 		let target = find_target_dir()?;
 		let filename: PathBuf = format!("{target}/regular-grammar/{basename}.cbor").into();
@@ -141,7 +141,7 @@ impl<T: Token> Grammar<T> {
 		matches!(self, Self::Cached(_))
 	}
 
-	pub fn build_automaton(self) -> DetAutomaton<u32, T::Range> {
+	pub fn build_automaton(self) -> DetAutomaton<u32, T::Set> {
 		match self {
 			Self::Cached(aut) => aut,
 			Self::Abnf(g) => g.build_automaton(),

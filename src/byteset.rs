@@ -1,4 +1,5 @@
 use btree_range_map::{AnyRange, RangeSet};
+use serde::{Deserialize, Serialize};
 use std::{
 	fmt,
 	ops::{Deref, DerefMut, RangeInclusive},
@@ -43,7 +44,7 @@ impl<'a> fmt::Display for DisplayByteRange<'a> {
 	}
 }
 
-#[derive(Clone, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct ByteSet(RangeSet<u8>);
 
 impl ByteSet {

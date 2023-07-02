@@ -5,7 +5,7 @@ use quote::quote;
 
 use crate::{
 	charset,
-	utils::{automaton, Sanitized},
+	utils::{automaton, MergeRef, Sanitized},
 	CharSet,
 };
 
@@ -60,25 +60,6 @@ impl TokenRange<char> for AnyRange<char> {
 	fn peek(&self) -> Option<char> {
 		self.first()
 	}
-
-	fn rust_range(&self) -> proc_macro2::TokenStream {
-		match self.len() {
-			0 => panic!("empty range"),
-			1 => {
-				let a = self.first().unwrap();
-				quote! {
-					#a
-				}
-			}
-			_ => {
-				let a = self.first().unwrap();
-				let b = self.last().unwrap();
-				quote! {
-					#a..=#b
-				}
-			}
-		}
-	}
 }
 
 impl TokenSet<char> for CharSet {
@@ -106,12 +87,31 @@ impl TokenSet<char> for CharSet {
 		self.extend(other.ranges())
 	}
 
+	fn rust_set(&self) -> proc_macro2::TokenStream {
+		let ranges = self.ranges().map(|range| match range.len() {
+			0 => panic!("empty range"),
+			1 => {
+				let a = range.first().unwrap();
+				quote! {
+					#a
+				}
+			}
+			_ => {
+				let a = range.first().unwrap();
+				let b = range.last().unwrap();
+				quote! {
+					#a..=#b
+				}
+			}
+		});
+
+		quote! { #(#ranges)|* }
+	}
+}
+
+impl MergeRef for CharSet {
 	fn merge_with_ref(&mut self, other: &Self) {
 		self.extend(other.ranges())
-	}
-
-	fn insert_range(&mut self, range: <char as Token>::Range) {
-		self.insert(range)
 	}
 }
 
@@ -124,6 +124,10 @@ impl automaton::DeterminizeLabel for CharSet {
 
 	fn ranges(&self) -> Self::Ranges<'_> {
 		CharSet::ranges(self)
+	}
+
+	fn insert_range(&mut self, range: <char as Token>::Range) {
+		self.insert(range)
 	}
 }
 

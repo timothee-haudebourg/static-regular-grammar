@@ -7,9 +7,11 @@
 
 <!-- cargo-rdme start -->
 
-This library provides the `RegularGrammar` macro that helps you create
-unsized type wrapping byte or char strings validated by a regular grammar.
-For now, only the ABNF grammar format is supported.
+This library provides the handy `RegularGrammar` derive macro that helps you
+create unsized type wrapping byte or char strings validated by a regular
+grammar. For now, only the [ABNF] grammar format is supported.
+
+[ABNF]: <https://datatracker.ietf.org/doc/html/rfc5234>
 
 ## Example
 
