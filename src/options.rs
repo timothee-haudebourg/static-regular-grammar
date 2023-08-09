@@ -9,6 +9,10 @@ pub struct Options {
 	pub entry_point: Option<String>,
 	pub sized: Option<SizedTypeOptions>,
 	pub cache_path: PathBuf,
+	pub no_deref: bool,
+	pub no_borrow: bool,
+	pub ascii: bool,
+	pub disable: bool,
 }
 
 impl Options {
@@ -21,6 +25,10 @@ impl Options {
 				None => None,
 			},
 			cache_path: build_cache_path(ident, attr.cache_path)?,
+			no_deref: attr.no_deref,
+			no_borrow: attr.no_borrow,
+			ascii: attr.ascii,
+			disable: attr.disable,
 		})
 	}
 }

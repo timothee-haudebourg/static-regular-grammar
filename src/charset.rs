@@ -80,6 +80,12 @@ impl CharSet {
 		self.0.len()
 	}
 
+	pub fn is_ascii(&self) -> bool {
+		self.0
+			.iter()
+			.all(|range| range.first().unwrap().is_ascii() && range.last().unwrap().is_ascii())
+	}
+
 	pub fn from_char(c: char, case_sensitive: bool) -> CharSet {
 		let mut set = CharSet::new();
 

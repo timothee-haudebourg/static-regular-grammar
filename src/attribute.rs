@@ -29,6 +29,10 @@ pub struct Attribute {
 	pub entry_point: Option<String>,
 	pub sized: Option<SizedTypeAttributes>,
 	pub cache_path: Option<PathBuf>,
+	pub no_deref: bool,
+	pub no_borrow: bool,
+	pub ascii: bool,
+	pub disable: bool,
 }
 
 impl Attribute {
@@ -40,7 +44,11 @@ impl Attribute {
 			self.sized.get_or_insert_with(Default::default).append(a);
 		}
 
-		self.cache_path = other.cache_path.or(self.cache_path.take())
+		self.cache_path = other.cache_path.or(self.cache_path.take());
+		self.no_deref |= other.no_deref;
+		self.no_borrow |= other.no_borrow;
+		self.ascii |= other.ascii;
+		self.disable |= other.disable
 	}
 }
 
@@ -49,6 +57,10 @@ enum AttributeItem {
 	EntryPoint,
 	SizedType,
 	CachePath,
+	NoDeref,
+	NoBorrow,
+	Ascii,
+	Disable,
 	Separator,
 }
 
@@ -59,6 +71,10 @@ impl AttributeItem {
 			TokenTree::Ident(id) if id == "entry_point" => Ok(Self::EntryPoint),
 			TokenTree::Ident(id) if id == "sized" => Ok(Self::SizedType),
 			TokenTree::Ident(id) if id == "cache" => Ok(Self::CachePath),
+			TokenTree::Ident(id) if id == "no_deref" => Ok(Self::NoDeref),
+			TokenTree::Ident(id) if id == "no_borrow" => Ok(Self::NoBorrow),
+			TokenTree::Ident(id) if id == "ascii" => Ok(Self::Ascii),
+			TokenTree::Ident(id) if id == "disable" => Ok(Self::Disable),
 			TokenTree::Punct(_) => Ok(Self::Separator),
 			t => {
 				let span = t.span();
@@ -158,6 +174,13 @@ impl Attribute {
 					let inner = expect_group(&mut tokens, span)?;
 					result.sized = Some(SizedTypeAttributes::parse(inner)?)
 				}
+				AttributeItem::NoDeref => result.no_deref = true,
+				AttributeItem::NoBorrow => {
+					result.no_borrow = true;
+					result.no_deref = true
+				}
+				AttributeItem::Ascii => result.ascii = true,
+				AttributeItem::Disable => result.disable = true,
 			}
 		}
 
@@ -240,6 +263,8 @@ impl SizedTypeAttributes {
 							}
 						}
 					}
+
+					result.derives.append(derives)
 				}
 			}
 		}

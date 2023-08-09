@@ -200,6 +200,9 @@ pub(crate) enum Error {
 
 	#[error("missing sized type identifier")]
 	MissingSizedTypeIdent,
+
+	#[error("grammar is not ASCII")]
+	NotAscii,
 }
 
 enum TokenType {
@@ -263,6 +266,12 @@ fn extract_grammar_data(
 											.append(Attribute::parse(attr).map_err(
 												|(e, span)| (Error::Attribute(e), span),
 											)?);
+									} else if attr.meta.path().is_ident("cfg_attr") {
+										// This only happens inside `rustanalyzer`.
+										// See: https://github.com/rust-lang/rust-analyzer/issues/13360
+										// See: https://github.com/rust-lang/rust-analyzer/issues/13436
+										// Just to be sure, we disable the grammar.
+										grammar_attr.disable = true
 									} else {
 										attrs_rest.push(attr);
 									}
@@ -309,30 +318,48 @@ fn generate_typed<T: Token>(
 	data: GrammarData,
 	attrs: Vec<syn::Attribute>,
 ) -> Result<TokenStream, (Error, Span)> {
-	let (grammar, hash) = extract_grammar::<T>(
-		&data.options.cache_path,
-		data.options.file.as_deref(),
-		data.options.entry_point.as_deref(),
-		attrs,
-	)
-	.map_err(|(e, span)| (Error::Grammar(e), span))?;
-	let cached = grammar.is_cached();
-	let automaton = grammar.build_automaton();
+	let automaton = if data.options.disable {
+		let mut aut = DetAutomaton::new(0);
+		aut.declare_state(0);
+		aut.add_final_state(0);
+		aut
+	} else {
+		let (grammar, hash) = extract_grammar::<T>(
+			&data.options.cache_path,
+			data.options.file.as_deref(),
+			data.options.entry_point.as_deref(),
+			attrs,
+		)
+		.map_err(|(e, span)| (Error::Grammar(e), span))?;
+		let cached = grammar.is_cached();
+		let automaton = grammar.build_automaton();
 
-	if !cached {
-		if let Err(e) = Grammar::<T>::save_to_file(&data.options.cache_path, hash, &automaton) {
-			eprintln!("unable to cache regular automaton: {e}")
+		if !cached {
+			if let Err(e) = Grammar::<T>::save_to_file(&data.options.cache_path, hash, &automaton) {
+				eprintln!("unable to cache regular automaton: {e}")
+			}
 		}
-	}
+
+		automaton
+	};
+
+	let contains_empty = automaton.contains_empty();
 
 	let vis = data.vis;
 	let ident = data.ident;
+	let ascii = data.options.ascii && T::is_ascii(&automaton);
+
+	if data.options.ascii && !ascii {
+		return Err((Error::NotAscii, Span::call_site()));
+	}
 
 	let as_ref = format_ident!("as_{}", SnakeCase(&ident.to_string()));
 
 	let token_type = T::rust_type();
 	let string_type = T::rust_string_type();
 	let iterator_method = T::rust_iterator_method();
+
+	let as_inner = T::rust_as_inner_method();
 
 	let error = format_ident!("Invalid{}", ident);
 
@@ -347,7 +374,13 @@ fn generate_typed<T: Token>(
 	);
 
 	let validate_doc = format!("Checks that the input iterator produces a valid [`{ident}`]");
-	let validate_body = generate_validation_function::<T>(&automaton);
+	let validate_body = if data.options.disable {
+		quote! {
+			panic!("automaton not generated")
+		}
+	} else {
+		generate_validation_function::<T>(&automaton)
+	};
 
 	let mut tokens = quote! {
 		#[derive(Debug)]
@@ -366,16 +399,125 @@ fn generate_typed<T: Token>(
 			}
 
 			#[doc = #new_unchecked_doc]
-			pub unsafe fn new_unchecked(input: &#string_type) -> &Self {
+			pub const unsafe fn new_unchecked(input: &#string_type) -> &Self {
 				::core::mem::transmute(input)
 			}
 
 			#[doc = #validate_doc]
+			#[allow(unreachable_code)]
 			pub fn validate(mut input: impl Iterator<Item = #token_type>) -> bool {
 				#validate_body
 			}
 		}
 	};
+
+	if contains_empty {
+		let empty_string = T::rust_empty_string();
+		tokens.extend(quote! {
+			impl #ident {
+				pub const EMPTY: &'static Self = unsafe {
+					Self::new_unchecked(#empty_string)
+				};
+			}
+		})
+	}
+
+	if !data.options.no_borrow {
+		let as_bytes = T::rust_inner_as_bytes_method().map(|as_bytes| {
+			quote! {
+				pub fn as_bytes(&self) -> &[u8] {
+					self.0.#as_bytes()
+				}
+			}
+		});
+
+		let borrow_bytes = T::rust_inner_as_bytes_method().map(|as_bytes| {
+			quote! {
+				impl ::core::borrow::Borrow<[u8]> for #ident {
+					fn borrow(&self) -> &[u8] {
+						self.0.#as_bytes()
+					}
+				}
+
+				impl ::core::convert::AsRef<[u8]> for #ident {
+					fn as_ref(&self) -> &[u8] {
+						self.0.#as_bytes()
+					}
+				}
+			}
+		});
+
+		tokens.extend(quote! {
+			impl #ident {
+				pub fn #as_inner(&self) -> &#string_type {
+					&self.0
+				}
+
+				#as_bytes
+			}
+
+			impl ::core::borrow::Borrow<#string_type> for #ident {
+				fn borrow(&self) -> &#string_type {
+					&self.0
+				}
+			}
+
+			impl ::core::convert::AsRef<#string_type> for #ident {
+				fn as_ref(&self) -> &#string_type {
+					&self.0
+				}
+			}
+
+			#borrow_bytes
+		});
+
+		if ascii {
+			if let Some(as_ascii) = T::rust_inner_as_ascii_method_body() {
+				tokens.extend(quote! {
+					impl #ident {
+						pub fn as_str(&self) -> &str {
+							#as_ascii
+						}
+					}
+
+					impl ::core::borrow::Borrow<str> for #ident {
+						fn borrow(&self) -> &str {
+							#as_ascii
+						}
+					}
+
+					impl ::core::convert::AsRef<str> for #ident {
+						fn as_ref(&self) -> &str {
+							#as_ascii
+						}
+					}
+				})
+			}
+		}
+	}
+
+	if !data.options.no_deref {
+		match T::rust_inner_as_ascii_method_body() {
+			Some(as_ascii) if ascii => tokens.extend(quote! {
+				impl ::core::ops::Deref for #ident {
+					type Target = str;
+
+					fn deref(&self) -> &str {
+						#as_ascii
+					}
+				}
+			}),
+			_ => tokens.extend(quote! {
+				impl ::core::ops::Deref for #ident {
+					type Target = #string_type;
+
+					fn deref(&self) -> &#string_type {
+						&self.0
+					}
+				}
+			}),
+		}
+	}
 
 	if let Some(buffer) = data.options.sized {
 		let buffer_ident = buffer.ident;
@@ -396,7 +538,7 @@ fn generate_typed<T: Token>(
 				}
 
 				#[doc = #new_unchecked_doc]
-				pub unsafe fn new_unchecked(input: #owned_string_type) -> Self {
+				pub const unsafe fn new_unchecked(input: #owned_string_type) -> Self {
 					Self(input)
 				}
 
@@ -439,6 +581,94 @@ fn generate_typed<T: Token>(
 				}
 			}
 		});
+
+		if contains_empty {
+			tokens.extend(quote! {
+				impl ::core::default::Default for #buffer_ident {
+					fn default() -> Self {
+						unsafe {
+							Self::new_unchecked(::core::default::Default::default())
+						}
+					}
+				}
+			})
+		}
+
+		if !data.options.no_borrow {
+			let as_bytes = T::rust_inner_as_bytes_method().map(|as_bytes| {
+				quote! {
+					pub fn as_bytes(&self) -> &[u8] {
+						self.0.#as_bytes()
+					}
+				}
+			});
+
+			let into_bytes = T::rust_inner_into_bytes_method().map(|into_bytes| {
+				quote! {
+					pub fn into_bytes(self) -> Vec<u8> {
+						self.0.#into_bytes()
+					}
+				}
+			});
+
+			let borrow_bytes = T::rust_inner_as_bytes_method().map(|as_bytes| {
+				quote! {
+					impl ::core::borrow::Borrow<[u8]> for #buffer_ident {
+						fn borrow(&self) -> &[u8] {
+							self.0.#as_bytes()
+						}
+					}
+
+					impl ::core::convert::AsRef<[u8]> for #buffer_ident {
+						fn as_ref(&self) -> &[u8] {
+							self.0.#as_bytes()
+						}
+					}
+				}
+			});
+
+			let borrow_ascii = T::rust_inner_as_ascii_method_body().map(|as_ascii| {
+				quote! {
+					impl ::core::borrow::Borrow<str> for #buffer_ident {
+						fn borrow(&self) -> &str {
+							#as_ascii
+						}
+					}
+
+					impl ::core::convert::AsRef<str> for #buffer_ident {
+						fn as_ref(&self) -> &str {
+							#as_ascii
+						}
+					}
+				}
+			});
+
+			tokens.extend(quote! {
+				impl #buffer_ident {
+					pub fn #as_inner(&self) -> &#string_type {
+						&self.0
+					}
+
+					#as_bytes
+					#into_bytes
+				}
+
+				impl ::core::borrow::Borrow<#string_type> for #buffer_ident {
+					fn borrow(&self) -> &#string_type {
+						&self.0
+					}
+				}
+
+				impl ::core::convert::AsRef<#string_type> for #buffer_ident {
+					fn as_ref(&self) -> &#string_type {
+						&self.0
+					}
+				}
+
+				#borrow_bytes
+				#borrow_ascii
+			});
+		}
 
 		if buffer.derives.debug {
 			tokens.extend(quote! {

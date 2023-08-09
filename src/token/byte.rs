@@ -57,6 +57,40 @@ impl Token for u8 {
 	fn rust_iterator_method() -> proc_macro2::TokenStream {
 		quote!(iter().copied())
 	}
+
+	fn rust_as_inner_method() -> proc_macro2::TokenStream {
+		quote!(as_bytes)
+	}
+
+	fn rust_into_inner_method() -> proc_macro2::TokenStream {
+		quote!(into_bytes)
+	}
+
+	fn is_ascii(automaton: &automaton::DetAutomaton<u32, Self::Set>) -> bool {
+		for transitions in automaton.transitions().values() {
+			if transitions.keys().any(|set| !set.is_ascii()) {
+				return false;
+			}
+		}
+
+		true
+	}
+
+	fn rust_inner_as_ascii_method_body() -> Option<proc_macro2::TokenStream> {
+		Some(quote!(unsafe { ::core::str::from_utf8_unchecked(&self.0) }))
+	}
+
+	fn rust_inner_into_ascii_method_body() -> Option<proc_macro2::TokenStream> {
+		Some(quote!(unsafe {
+			::std::string::String::from_utf8_unchecked(self.0)
+		}))
+	}
+
+	fn rust_empty_string() -> proc_macro2::TokenStream {
+		quote! {
+			b""
+		}
+	}
 }
 
 impl TokenRange<u8> for AnyRange<u8> {

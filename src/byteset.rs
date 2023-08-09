@@ -100,6 +100,24 @@ impl ByteSet {
 	pub fn first(&self) -> Option<u8> {
 		self.0.iter().next().and_then(|range| range.first())
 	}
+
+	pub fn is_ascii(&self) -> bool {
+		for range in self.0.iter() {
+			if let Some(b) = range.first() {
+				if !b.is_ascii() {
+					return false;
+				}
+			}
+
+			if let Some(b) = range.first() {
+				if !b.is_ascii() {
+					return false;
+				}
+			}
+		}
+
+		true
+	}
 }
 
 pub struct Ranges<'a>(

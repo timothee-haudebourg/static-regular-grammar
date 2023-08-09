@@ -35,6 +35,16 @@ impl Token for char {
 		Sanitized(*self).fmt(f)
 	}
 
+	fn is_ascii(automaton: &automaton::DetAutomaton<u32, Self::Set>) -> bool {
+		for transitions in automaton.transitions().values() {
+			if transitions.keys().any(|set| !set.is_ascii()) {
+				return false;
+			}
+		}
+
+		true
+	}
+
 	fn rust_type() -> proc_macro2::TokenStream {
 		quote!(char)
 	}
@@ -49,6 +59,28 @@ impl Token for char {
 
 	fn rust_iterator_method() -> proc_macro2::TokenStream {
 		quote!(chars())
+	}
+
+	fn rust_as_inner_method() -> proc_macro2::TokenStream {
+		quote!(as_str)
+	}
+
+	fn rust_into_inner_method() -> proc_macro2::TokenStream {
+		quote!(into_string)
+	}
+
+	fn rust_inner_as_bytes_method() -> Option<proc_macro2::TokenStream> {
+		Some(quote!(as_bytes))
+	}
+
+	fn rust_inner_into_bytes_method() -> Option<proc_macro2::TokenStream> {
+		Some(quote!(into_bytes))
+	}
+
+	fn rust_empty_string() -> proc_macro2::TokenStream {
+		quote! {
+			""
+		}
 	}
 }
 

@@ -213,6 +213,13 @@ impl<Q, L> DetAutomaton<Q, L> {
 	pub fn transitions(&self) -> &BTreeMap<Q, BTreeMap<L, Q>> {
 		&self.transitions
 	}
+
+	pub fn contains_empty(&self) -> bool
+	where
+		Q: Ord,
+	{
+		self.final_states.contains(&self.initial_state)
+	}
 }
 
 impl<Q: Ord, L: Ord> DetAutomaton<Q, L> {

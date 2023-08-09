@@ -3,7 +3,10 @@ use std::{fmt::Debug, hash::Hash};
 
 use serde::{de::DeserializeOwned, Serialize};
 
-use crate::utils::{automaton, MergeRef};
+use crate::utils::{
+	automaton::{self, DetAutomaton},
+	MergeRef,
+};
 
 mod byte;
 mod char;
@@ -34,6 +37,32 @@ pub trait Token: Copy {
 	fn rust_owned_string_type() -> proc_macro2::TokenStream;
 
 	fn rust_iterator_method() -> proc_macro2::TokenStream;
+
+	fn rust_as_inner_method() -> proc_macro2::TokenStream;
+
+	fn rust_into_inner_method() -> proc_macro2::TokenStream;
+
+	fn rust_inner_as_bytes_method() -> Option<proc_macro2::TokenStream> {
+		None
+	}
+
+	fn rust_inner_into_bytes_method() -> Option<proc_macro2::TokenStream> {
+		None
+	}
+
+	fn is_ascii(_automaton: &DetAutomaton<u32, Self::Set>) -> bool {
+		false
+	}
+
+	fn rust_inner_as_ascii_method_body() -> Option<proc_macro2::TokenStream> {
+		None
+	}
+
+	fn rust_inner_into_ascii_method_body() -> Option<proc_macro2::TokenStream> {
+		None
+	}
+
+	fn rust_empty_string() -> proc_macro2::TokenStream;
 }
 
 pub trait TokenRange<T: Token>: Debug + Copy + Ord + Hash {
