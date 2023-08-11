@@ -643,10 +643,16 @@ fn generate_typed<T: Token>(
 				}
 			});
 
+			let into_inner = T::rust_into_inner_method();
+
 			tokens.extend(quote! {
 				impl #buffer_ident {
 					pub fn #as_inner(&self) -> &#string_type {
 						&self.0
+					}
+
+					pub fn #into_inner(self) -> #owned_string_type {
+						self.0
 					}
 
 					#as_bytes
