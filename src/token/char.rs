@@ -19,6 +19,8 @@ impl Token for char {
 
 	type Map<V> = RangeMap<char, V>;
 
+	const UNICODE: bool = true;
+
 	fn from_u8(b: u8) -> Self {
 		b as char
 	}
@@ -152,7 +154,7 @@ impl automaton::DeterminizeLabel for CharSet {
 
 	type Ranges<'a> = charset::Ranges<'a>;
 
-	type RangeMap<V: Clone + PartialEq> = RangeMap<char, V>;
+	type RangeMap<V: Clone + PartialEq + std::fmt::Debug> = RangeMap<char, V>;
 
 	fn ranges(&self) -> Self::Ranges<'_> {
 		CharSet::ranges(self)

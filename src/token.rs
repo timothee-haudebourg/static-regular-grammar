@@ -22,6 +22,8 @@ pub trait Token: Copy {
 	/// Token map.
 	type Map<V>: TokenMap<Self, V>;
 
+	const UNICODE: bool;
+
 	fn from_u8(b: u8) -> Self;
 
 	fn from_char(c: char) -> Option<Self>;

@@ -409,6 +409,26 @@ fn generate_typed<T: Token>(
 				#validate_body
 			}
 		}
+
+		impl AsRef<#ident> for #ident {
+			fn as_ref(&self) -> &#ident {
+				self
+			}
+		}
+
+		impl<'a> TryFrom<&'a #string_type> for &'a #ident {
+			type Error = #error<&'a #string_type>;
+
+			fn try_from(input: &'a #string_type) -> Result<&'a #ident, #error<&'a #string_type>> {
+				#ident::new(input)
+			}
+		}
+
+		impl<'a> From<&'a #ident> for &'a #string_type {
+			fn from(value: &'a #ident) -> &'a #string_type {
+				&value.0
+			}
+		}
 	};
 
 	if contains_empty {
@@ -491,6 +511,20 @@ fn generate_typed<T: Token>(
 							#as_ascii
 						}
 					}
+
+					impl<'a> TryFrom<&'a str> for &'a #ident {
+						type Error = #error<&'a str>;
+
+						fn try_from(input: &'a str) -> Result<&'a #ident, #error<&'a str>> {
+							#ident::new(input.as_bytes()).map_err(|_| #error(input))
+						}
+					}
+
+					impl<'a> From<&'a #ident> for &'a str {
+						fn from(value: &'a #ident) -> &'a str {
+							value.as_str()
+						}
+					}
 				})
 			}
 		}
@@ -517,6 +551,22 @@ fn generate_typed<T: Token>(
 				}
 			}),
 		}
+	}
+
+	if T::UNICODE || ascii {
+		tokens.extend(quote! {
+			impl ::core::fmt::Display for #ident {
+				fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+					::core::fmt::Display::fmt(self.as_str(), f)
+				}
+			}
+
+			impl ::core::fmt::Debug for #ident {
+				fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+					::core::fmt::Debug::fmt(self.as_str(), f)
+				}
+			}
+		});
 	}
 
 	if let Some(buffer) = data.options.sized {
@@ -580,7 +630,63 @@ fn generate_typed<T: Token>(
 					}
 				}
 			}
+
+			impl TryFrom<#owned_string_type> for #buffer_ident {
+				type Error = #error<#owned_string_type>;
+
+				fn try_from(input: #owned_string_type) -> Result<#buffer_ident, #error<#owned_string_type>> {
+					#buffer_ident::new(input)
+				}
+			}
+
+			impl From<#buffer_ident> for #owned_string_type {
+				fn from(value: #buffer_ident) -> #owned_string_type {
+					value.0
+				}
+			}
 		});
+
+		if !T::UNICODE && ascii {
+			tokens.extend(quote! {
+				impl #buffer_ident {
+					pub fn into_string(self) -> ::std::string::String {
+						unsafe {
+							::std::string::String::from_utf8_unchecked(self.0)
+						}
+					}
+				}
+
+				impl TryFrom<::std::string::String> for #buffer_ident {
+					type Error = #error<::std::string::String>;
+
+					fn try_from(input: ::std::string::String) -> Result<#buffer_ident, #error<::std::string::String>> {
+						let bytes = input.into_bytes();
+						#buffer_ident::new(bytes).map_err(|#error(bytes)| unsafe {
+							#error(::std::string::String::from_utf8_unchecked(bytes))
+						})
+					}
+				}
+
+				impl From<#buffer_ident> for String {
+					fn from(value: #buffer_ident) -> String {
+						value.into_string()
+					}
+				}
+			})
+		}
+
+		if T::UNICODE || ascii {
+			tokens.extend(quote! {
+				impl ::std::str::FromStr for #buffer_ident {
+					type Err = #error<::std::string::String>;
+
+					fn from_str(s: &str) -> Result<Self, #error<::std::string::String>> {
+						let buffer = s.to_string();
+						buffer.try_into()
+					}
+				}
+			})
+		}
 
 		if contains_empty {
 			tokens.extend(quote! {

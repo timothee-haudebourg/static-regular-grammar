@@ -18,6 +18,8 @@ impl Token for u8 {
 
 	type Map<V> = RangeMap<u8, V>;
 
+	const UNICODE: bool = false;
+
 	fn from_u8(b: u8) -> Self {
 		b
 	}
@@ -161,7 +163,7 @@ impl automaton::DeterminizeLabel for ByteSet {
 
 	type Ranges<'a> = byteset::Ranges<'a>;
 
-	type RangeMap<V: Clone + PartialEq> = RangeMap<u8, V>;
+	type RangeMap<V: Clone + PartialEq + std::fmt::Debug> = RangeMap<u8, V>;
 
 	fn ranges(&self) -> Self::Ranges<'_> {
 		ByteSet::ranges(self)
