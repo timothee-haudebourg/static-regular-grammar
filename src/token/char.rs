@@ -154,7 +154,7 @@ impl automaton::DeterminizeLabel for CharSet {
 
 	type Ranges<'a> = charset::Ranges<'a>;
 
-	type RangeMap<V: Clone + PartialEq + std::fmt::Debug> = RangeMap<char, V>;
+	type RangeMap<V: Clone + PartialEq> = RangeMap<char, V>;
 
 	fn ranges(&self) -> Self::Ranges<'_> {
 		CharSet::ranges(self)
