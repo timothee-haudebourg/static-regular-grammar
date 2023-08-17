@@ -33,6 +33,7 @@ pub struct Attribute {
 	pub no_borrow: bool,
 	pub ascii: bool,
 	pub disable: bool,
+	pub serde: bool,
 }
 
 impl Attribute {
@@ -48,7 +49,8 @@ impl Attribute {
 		self.no_deref |= other.no_deref;
 		self.no_borrow |= other.no_borrow;
 		self.ascii |= other.ascii;
-		self.disable |= other.disable
+		self.disable |= other.disable;
+		self.serde |= other.serde
 	}
 }
 
@@ -61,6 +63,7 @@ enum AttributeItem {
 	NoBorrow,
 	Ascii,
 	Disable,
+	Serde,
 	Separator,
 }
 
@@ -75,6 +78,7 @@ impl AttributeItem {
 			TokenTree::Ident(id) if id == "no_borrow" => Ok(Self::NoBorrow),
 			TokenTree::Ident(id) if id == "ascii" => Ok(Self::Ascii),
 			TokenTree::Ident(id) if id == "disable" => Ok(Self::Disable),
+			TokenTree::Ident(id) if id == "serde" => Ok(Self::Serde),
 			TokenTree::Punct(_) => Ok(Self::Separator),
 			t => {
 				let span = t.span();
@@ -181,6 +185,7 @@ impl Attribute {
 				}
 				AttributeItem::Ascii => result.ascii = true,
 				AttributeItem::Disable => result.disable = true,
+				AttributeItem::Serde => result.serde = true,
 			}
 		}
 

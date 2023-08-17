@@ -570,6 +570,77 @@ fn generate_typed<T: Token>(
 		});
 	}
 
+	if data.options.serde {
+		let serialize = if T::UNICODE || ascii {
+			quote! {
+				serializer.serialize_str(self.as_str())
+			}
+		} else {
+			quote! {
+				serializer.serialize_bytes(self.as_bytes())
+			}
+		};
+
+		let visit_bytes = if T::UNICODE {
+			quote! {
+				match std::str::from_utf8(v) {
+					Ok(s) => #ident::new(s).map_err(|_| ()),
+					Err(e) => Err(())
+				}
+			}
+		} else {
+			quote! {
+				#ident::new(v)
+			}
+		};
+
+		let expected = format!("some {ident}");
+
+		tokens.extend(quote! {
+			impl ::serde::Serialize for #ident {
+				fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+				where
+					S: ::serde::Serializer
+				{
+					#serialize
+				}
+			}
+
+			impl<'de> ::serde::Deserialize<'de> for &'de #ident {
+				fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+				where
+					D: ::serde::Deserializer<'de>
+				{
+					struct Visitor;
+
+					impl<'de> ::serde::de::Visitor<'de> for Visitor {
+						type Value = &'de #ident;
+
+						fn expecting(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+							write!(f, #expected)
+						}
+
+						fn visit_borrowed_str<E>(self, v: &'de str) -> Result<Self::Value, E>
+						where
+							E: ::serde::de::Error
+						{
+							#ident::new(v).map_err(|_| E::invalid_value(::serde::de::Unexpected::Str(v), &self))
+						}
+
+						fn visit_borrowed_bytes<E>(self, v: &'de [u8]) -> Result<Self::Value, E>
+						where
+							E: ::serde::de::Error
+						{
+							#visit_bytes.map_err(|_| E::invalid_value(::serde::de::Unexpected::Bytes(v), &self))
+						}
+					}
+
+					deserializer.deserialize_str(Visitor)
+				}
+			}
+		})
+	}
+
 	if let Some(buffer) = data.options.sized {
 		let buffer_ident = buffer.ident;
 		let owned_string_type = T::rust_owned_string_type();
@@ -884,6 +955,103 @@ fn generate_typed<T: Token>(
 					}
 				});
 			}
+		}
+
+		if data.options.serde {
+			let serialize = if T::UNICODE || ascii {
+				quote! {
+					serializer.serialize_str(self.as_str())
+				}
+			} else {
+				quote! {
+					serializer.serialize_bytes(self.as_bytes())
+				}
+			};
+
+			let (visit_str, visit_bytes) = if T::UNICODE {
+				(
+					quote! {
+						#buffer_ident::new(v)
+					},
+					quote! {
+						match ::std::string::String::from_utf8(v) {
+							Ok(s) => #buffer_ident::new(s).map_err(|#error(s)| #error(s.into_bytes())),
+							Err(e) => Err(#error(e.into_bytes()))
+						}
+					},
+				)
+			} else {
+				(
+					quote! {
+						#buffer_ident::new(v.into_bytes()).map_err(|#error(bytes)| unsafe {
+							#error(::std::string::String::from_utf8_unchecked(bytes))
+						})
+					},
+					quote! {
+						#buffer_ident::new(v)
+					},
+				)
+			};
+
+			let expected = format!("some {ident}");
+
+			tokens.extend(quote! {
+				impl ::serde::Serialize for #buffer_ident {
+					fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+					where
+						S: ::serde::Serializer
+					{
+						#serialize
+					}
+				}
+
+				impl<'de> ::serde::Deserialize<'de> for #buffer_ident {
+					fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+					where
+						D: ::serde::Deserializer<'de>
+					{
+						struct Visitor;
+
+						impl<'de> ::serde::de::Visitor<'de> for Visitor {
+							type Value = #buffer_ident;
+
+							fn expecting(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+								write!(f, #expected)
+							}
+
+							fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+							where
+								E: ::serde::de::Error
+							{
+								self.visit_string(v.to_string())
+							}
+
+							fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
+							where
+								E: ::serde::de::Error
+							{
+								self.visit_byte_buf(v.to_vec())
+							}
+
+							fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
+							where
+								E: ::serde::de::Error
+							{
+								#visit_str.map_err(|#error(v)| E::invalid_value(::serde::de::Unexpected::Str(&v), &self))
+							}
+
+							fn visit_byte_buf<E>(self, v: Vec<u8>) -> Result<Self::Value, E>
+							where
+								E: ::serde::de::Error
+							{
+								#visit_bytes.map_err(|#error(v)| E::invalid_value(::serde::de::Unexpected::Bytes(&v), &self))
+							}
+						}
+
+						deserializer.deserialize_str(Visitor)
+					}
+				}
+			})
 		}
 	}
 

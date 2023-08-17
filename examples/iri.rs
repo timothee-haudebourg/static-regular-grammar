@@ -5,7 +5,8 @@ use static_regular_grammar::RegularGrammar;
 #[grammar(
 	file = "examples/iri.abnf",
 	cache = "target/examples/iri.automaton.cbor",
-	sized(IriBuf, derive(PartialEq, Eq))
+	sized(IriBuf, derive(PartialEq, Eq)),
+	serde
 )]
 pub struct Iri(str);
 

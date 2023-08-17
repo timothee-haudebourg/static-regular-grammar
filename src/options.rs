@@ -13,6 +13,7 @@ pub struct Options {
 	pub no_borrow: bool,
 	pub ascii: bool,
 	pub disable: bool,
+	pub serde: bool,
 }
 
 impl Options {
@@ -29,6 +30,7 @@ impl Options {
 			no_borrow: attr.no_borrow,
 			ascii: attr.ascii,
 			disable: attr.disable,
+			serde: attr.serde,
 		})
 	}
 }
