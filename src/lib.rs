@@ -606,7 +606,7 @@ fn generate_typed<T: Token>(
 				}
 			}
 
-			impl<'de> ::serde::Deserialize<'de> for &'de #ident {
+			impl<'a, 'de: 'a> ::serde::Deserialize<'de> for &'a #ident {
 				fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
 				where
 					D: ::serde::Deserializer<'de>
