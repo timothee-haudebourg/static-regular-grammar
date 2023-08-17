@@ -388,10 +388,11 @@ fn generate_typed<T: Token>(
 
 		impl #ident {
 			#[doc = #new_doc]
-			pub fn new(input: &#string_type) -> Result<&Self, #error<&#string_type>> {
-				if Self::validate(input.#iterator_method) {
+			pub fn new<T: ?Sized + AsRef<#string_type>>(input: &T) -> Result<&Self, #error<&T>> {
+				let input_ref = input.as_ref();
+				if Self::validate(input_ref.#iterator_method) {
 					Ok(unsafe {
-						Self::new_unchecked(input)
+						Self::new_unchecked(input_ref)
 					})
 				} else {
 					Err(#error(input))
