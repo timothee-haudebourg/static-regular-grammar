@@ -574,12 +574,25 @@ fn generate_typed<T: Token>(
 		let buffer_ident = buffer.ident;
 		let owned_string_type = T::rust_owned_string_type();
 
+		let owned_doc = format!("Owned [`{ident}`].");
+		let owned_new_doc =
+			format!("Creates a new [`{buffer_ident}`] by parsing the `input` value");
+		let owned_new_unchecked_doc = formatdoc!(
+			r#"
+			Creates a new [`{buffer_ident}`] from the `input` value without validation.
+			
+			# Safety
+			
+			The input data *must* be a valid [`{ident}`]."#
+		);
+
 		tokens.extend(quote! {
+			#[doc = #owned_doc]
 			#[derive(Clone)]
 			#vis struct #buffer_ident(#owned_string_type);
 
 			impl #buffer_ident {
-				#[doc = #new_doc]
+				#[doc = #owned_new_doc]
 				pub fn new(input: #owned_string_type) -> Result<Self, #error<#owned_string_type>> {
 					if #ident::validate(input.#iterator_method) {
 						Ok(Self(input))
@@ -588,7 +601,7 @@ fn generate_typed<T: Token>(
 					}
 				}
 
-				#[doc = #new_unchecked_doc]
+				#[doc = #owned_new_unchecked_doc]
 				pub const unsafe fn new_unchecked(input: #owned_string_type) -> Self {
 					Self(input)
 				}
