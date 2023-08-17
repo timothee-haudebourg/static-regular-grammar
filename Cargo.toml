@@ -1,7 +1,15 @@
 [package]
 name = "static-regular-grammar"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
+authors = ["Timothée Haudebourg <author@haudebourg.net>"]
+categories = ["parsing"]
+keywords = ["parsing", "abnf", "derive", "grammar", "regular"]
+description = "Derive macro for static regular grammar"
+repository = "https://github.com/timothee-haudebourg/static-regular-grammar"
+documentation = "https://docs.rs/static-regular-grammar"
+license = "MIT/Apache-2.0"
+readme = "README.md"
 
 [lib]
 proc-macro = true
