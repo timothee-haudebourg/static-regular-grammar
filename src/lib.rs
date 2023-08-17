@@ -61,9 +61,9 @@
 //!
 //! let bar = Bar::new(b"baaaar").unwrap();
 //! ```
-//! 
+//!
 //! # ASCII
-//! 
+//!
 //! Using the `[u8]` token string type, it is possible to specify that the
 //! value can be interpreted as an ASCII text string. Then the resulting type
 //! will implement `Display`, `Deref<Target=str>`, `AsRef<str>`, ect.
@@ -143,10 +143,10 @@
 //! For large grammars, it might be a good idea to cache the automaton directly
 //! with the sources, and ship it with your library/application to reduce
 //! compilation time on the user machine.
-//! 
+//!
 //! # Disable automaton generation
-//! 
-//! When using a linter such as [`rust-analyzer`], it may be too expensive to 
+//!
+//! When using a linter such as [`rust-analyzer`], it may be too expensive to
 //! regenerate the grammar automaton continually, even with caching. On large
 //! grammars the generated automaton code can span hundreds or even thousands
 //! of lines. In that case it is possible to disable the automaton generation
@@ -154,13 +154,13 @@
 //! ```ignore
 //! #[grammar(disable)]
 //! ```
-//! 
+//!
 //! Of course it is best to use this option behind a feature used only by the
 //! linter:
 //! ```ignore
 //! #[cfg_attr(feature = "disable-grammars", grammar(disable))]
 //! ```
-//! 
+//!
 //! [`rust-analyzer`](https://rust-analyzer.github.io/)
 use indoc::formatdoc;
 use proc_macro2::{Ident, Span, TokenStream};

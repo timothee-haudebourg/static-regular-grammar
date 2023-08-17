@@ -151,7 +151,7 @@ compilation time on the user machine.
 
 ## Disable automaton generation
 
-When using a linter such as [`rust-analyzer`], it may be too expensive to 
+When using a linter such as [`rust-analyzer`], it may be too expensive to
 regenerate the grammar automaton continually, even with caching. On large
 grammars the generated automaton code can span hundreds or even thousands
 of lines. In that case it is possible to disable the automaton generation
