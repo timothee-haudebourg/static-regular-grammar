@@ -27,6 +27,7 @@ pub enum Error {
 pub struct Attribute {
 	pub file: Option<PathBuf>,
 	pub entry_point: Option<String>,
+	pub name: Option<String>,
 	pub sized: Option<SizedTypeAttributes>,
 	pub cache_path: Option<PathBuf>,
 	pub no_deref: bool,
@@ -40,6 +41,7 @@ impl Attribute {
 	pub fn append(&mut self, other: Self) {
 		self.file = other.file.or(self.file.take());
 		self.entry_point = other.entry_point.or(self.entry_point.take());
+		self.name = other.name.or(self.name.take());
 
 		if let Some(a) = other.sized {
 			self.sized.get_or_insert_with(Default::default).append(a);
@@ -57,6 +59,7 @@ impl Attribute {
 enum AttributeItem {
 	File,
 	EntryPoint,
+	Name,
 	SizedType,
 	CachePath,
 	NoDeref,
@@ -72,6 +75,7 @@ impl AttributeItem {
 		match token {
 			TokenTree::Ident(id) if id == "file" => Ok(Self::File),
 			TokenTree::Ident(id) if id == "entry_point" => Ok(Self::EntryPoint),
+			TokenTree::Ident(id) if id == "name" => Ok(Self::Name),
 			TokenTree::Ident(id) if id == "sized" => Ok(Self::SizedType),
 			TokenTree::Ident(id) if id == "cache" => Ok(Self::CachePath),
 			TokenTree::Ident(id) if id == "no_deref" => Ok(Self::NoDeref),
@@ -163,6 +167,10 @@ impl Attribute {
 				AttributeItem::EntryPoint => {
 					expect_eq(&mut tokens, span)?;
 					result.entry_point = Some(expect_str_literal(&mut tokens, span)?)
+				}
+				AttributeItem::Name => {
+					expect_eq(&mut tokens, span)?;
+					result.name = Some(expect_str_literal(&mut tokens, span)?)
 				}
 				AttributeItem::CachePath => {
 					expect_eq(&mut tokens, span)?;

@@ -7,6 +7,7 @@ use crate::{attribute::SizedTypeAttributes, Attribute, Error};
 pub struct Options {
 	pub file: Option<PathBuf>,
 	pub entry_point: Option<String>,
+	pub name: Option<String>,
 	pub sized: Option<SizedTypeOptions>,
 	pub cache_path: PathBuf,
 	pub no_deref: bool,
@@ -21,6 +22,7 @@ impl Options {
 		Ok(Self {
 			file: attr.file,
 			entry_point: attr.entry_point,
+			name: attr.name,
 			sized: match attr.sized {
 				Some(attr) => Some(SizedTypeOptions::from_attribute(attr, ident.span())?),
 				None => None,

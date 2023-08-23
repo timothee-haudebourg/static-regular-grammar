@@ -382,6 +382,11 @@ fn generate_typed<T: Token>(
 	let vis = data.vis;
 	let ident = data.ident;
 	let ascii = data.options.ascii && T::is_ascii(&automaton);
+	let name = data
+		.options
+		.name
+		.or_else(|| data.options.entry_point)
+		.unwrap_or_else(|| ident.to_string());
 
 	if data.options.ascii && !ascii {
 		return Err((Error::NotAscii, Span::call_site()));
@@ -396,18 +401,19 @@ fn generate_typed<T: Token>(
 	let as_inner = T::rust_as_inner_method();
 
 	let error = format_ident!("Invalid{}", ident);
+	let error_msg = format!("Invalid {name} `{{0}}`");
 
-	let new_doc = format!("Creates a new [`{ident}`] by parsing the `input` value");
+	let new_doc = format!("Creates a new {name} by parsing the `input` value");
 	let new_unchecked_doc = formatdoc!(
 		r#"
-        Creates a new [`{ident}`] from the `input` value without validation.
+        Creates a new {name} from the `input` value without validation.
         
         # Safety
         
-        The input data *must* be a valid [`{ident}`]."#
+        The input data *must* be a valid {name}."#
 	);
 
-	let validate_doc = format!("Checks that the input iterator produces a valid [`{ident}`]");
+	let validate_doc = format!("Checks that the input iterator produces a valid {name}");
 	let validate_body = if data.options.disable {
 		quote! {
 			panic!("automaton not generated")
@@ -419,6 +425,14 @@ fn generate_typed<T: Token>(
 	let mut tokens = quote! {
 		#[derive(Debug)]
 		#vis struct #error<T>(pub T);
+
+		impl<T: ::core::fmt::Display> ::core::fmt::Display for #error<T> {
+			fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+				write!(f, #error_msg, self.0)
+			}
+		}
+
+		impl<T: ::core::fmt::Debug + ::core::fmt::Display> ::std::error::Error for #error<T> {}
 
 		impl #ident {
 			#[doc = #new_doc]
@@ -679,16 +693,15 @@ fn generate_typed<T: Token>(
 		let buffer_ident = buffer.ident;
 		let owned_string_type = T::rust_owned_string_type();
 
-		let owned_doc = format!("Owned [`{ident}`].");
-		let owned_new_doc =
-			format!("Creates a new [`{buffer_ident}`] by parsing the `input` value");
+		let owned_doc = format!("Owned {name}.");
+		let owned_new_doc = format!("Creates a new owned {name} by parsing the `input` value");
 		let owned_new_unchecked_doc = formatdoc!(
 			r#"
-			Creates a new [`{buffer_ident}`] from the `input` value without validation.
+			Creates a new owned {name} from the `input` value without validation.
 			
 			# Safety
 			
-			The input data *must* be a valid [`{ident}`]."#
+			The input data *must* be a valid {name}."#
 		);
 
 		tokens.extend(quote! {
