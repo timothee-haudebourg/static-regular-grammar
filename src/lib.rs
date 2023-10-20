@@ -385,7 +385,7 @@ fn generate_typed<T: Token>(
 	let name = data
 		.options
 		.name
-		.or_else(|| data.options.entry_point)
+		.or(data.options.entry_point)
 		.unwrap_or_else(|| ident.to_string());
 
 	if data.options.ascii && !ascii {
@@ -963,13 +963,31 @@ fn generate_typed<T: Token>(
 		}
 
 		if buffer.derives.partial_ord {
-			tokens.extend(quote! {
-				impl ::core::cmp::PartialOrd for #buffer_ident {
-					fn partial_cmp(&self, other: &Self) -> Option<::core::cmp::Ordering> {
-						<#ident as ::core::cmp::PartialOrd>::partial_cmp(self.#as_ref(), other.#as_ref())
+			if buffer.derives.ord {
+				tokens.extend(quote! {
+					impl ::core::cmp::Ord for #buffer_ident {
+						fn cmp(&self, other: &Self) -> ::core::cmp::Ordering {
+							<#ident as ::core::cmp::Ord>::cmp(self.#as_ref(), other.#as_ref())
+						}
 					}
-				}
 
+					impl ::core::cmp::PartialOrd for #buffer_ident {
+						fn partial_cmp(&self, other: &Self) -> Option<::core::cmp::Ordering> {
+							Some(<#buffer_ident as ::core::cmp::Ord>::cmp(self, other))
+						}
+					}
+				});
+			} else {
+				tokens.extend(quote! {
+					impl ::core::cmp::PartialOrd for #buffer_ident {
+						fn partial_cmp(&self, other: &Self) -> Option<::core::cmp::Ordering> {
+							<#ident as ::core::cmp::PartialOrd>::partial_cmp(self.#as_ref(), other.#as_ref())
+						}
+					}
+				});
+			}
+
+			tokens.extend(quote! {
 				impl ::core::cmp::PartialOrd<#ident> for #buffer_ident {
 					fn partial_cmp(&self, other: &#ident) -> Option<::core::cmp::Ordering> {
 						<#ident as ::core::cmp::PartialOrd>::partial_cmp(self.#as_ref(), other)
@@ -982,16 +1000,6 @@ fn generate_typed<T: Token>(
 					}
 				}
 			});
-
-			if buffer.derives.ord {
-				tokens.extend(quote! {
-					impl ::core::cmp::Ord for #buffer_ident {
-						fn cmp(&self, other: &Self) -> ::core::cmp::Ordering {
-							<#ident as ::core::cmp::Ord>::cmp(self.#as_ref(), other.#as_ref())
-						}
-					}
-				});
-			}
 
 			if buffer.derives.hash {
 				tokens.extend(quote! {
