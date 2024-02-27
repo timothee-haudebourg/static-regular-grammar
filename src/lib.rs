@@ -839,12 +839,6 @@ fn generate_typed<T: Token>(
 
 			let borrow_bytes = T::rust_inner_as_bytes_method().map(|as_bytes| {
 				quote! {
-					impl ::core::borrow::Borrow<[u8]> for #buffer_ident {
-						fn borrow(&self) -> &[u8] {
-							self.0.#as_bytes()
-						}
-					}
-
 					impl ::core::convert::AsRef<[u8]> for #buffer_ident {
 						fn as_ref(&self) -> &[u8] {
 							self.0.#as_bytes()
@@ -855,12 +849,6 @@ fn generate_typed<T: Token>(
 
 			let borrow_ascii = T::rust_inner_as_ascii_method_body().map(|as_ascii| {
 				quote! {
-					impl ::core::borrow::Borrow<str> for #buffer_ident {
-						fn borrow(&self) -> &str {
-							#as_ascii
-						}
-					}
-
 					impl ::core::convert::AsRef<str> for #buffer_ident {
 						fn as_ref(&self) -> &str {
 							#as_ascii
