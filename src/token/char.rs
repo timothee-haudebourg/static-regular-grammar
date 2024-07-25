@@ -1,15 +1,13 @@
-use std::fmt::Display;
-
 use btree_range_map::{AnyRange, RangeMap};
 use quote::quote;
 
 use crate::{
 	charset,
-	utils::{automaton, MergeRef, Sanitized},
+	utils::{automaton, MergeRef},
 	CharSet,
 };
 
-use super::{Token, TokenMap, TokenRange, TokenSet};
+use super::{Token, TokenRange, TokenSet};
 
 /// Unicode character token.
 impl Token for char {
@@ -17,7 +15,7 @@ impl Token for char {
 
 	type Set = CharSet;
 
-	type Map<V> = RangeMap<char, V>;
+	// type Map<V> = RangeMap<char, V>;
 
 	const UNICODE: bool = true;
 
@@ -33,9 +31,9 @@ impl Token for char {
 		char::from_u32(v)
 	}
 
-	fn fmt_token(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		Sanitized(*self).fmt(f)
-	}
+	// fn fmt_token(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+	// 	Sanitized(*self).fmt(f)
+	// }
 
 	fn is_ascii(automaton: &automaton::DetAutomaton<u32, Self::Set>) -> bool {
 		for transitions in automaton.transitions().values() {
@@ -91,9 +89,9 @@ impl TokenRange<char> for AnyRange<char> {
 		(a..=b).into()
 	}
 
-	fn peek(&self) -> Option<char> {
-		self.first()
-	}
+	// fn peek(&self) -> Option<char> {
+	// 	self.first()
+	// }
 }
 
 impl TokenSet<char> for CharSet {
@@ -101,25 +99,25 @@ impl TokenSet<char> for CharSet {
 		CharSet::from_char(token, case_sensitive)
 	}
 
-	fn is_empty(&self) -> bool {
-		self.is_empty()
-	}
+	// fn is_empty(&self) -> bool {
+	// 	self.is_empty()
+	// }
 
-	fn len(&self) -> usize {
-		self.len() as usize
-	}
+	// fn len(&self) -> usize {
+	// 	self.len() as usize
+	// }
 
-	fn peek(&self) -> Option<char> {
-		self.first()
-	}
+	// fn peek(&self) -> Option<char> {
+	// 	self.first()
+	// }
 
-	fn intersects_range(&self, range: <char as Token>::Range) -> bool {
-		self.intersects(range)
-	}
+	// fn intersects_range(&self, range: <char as Token>::Range) -> bool {
+	// 	self.intersects(range)
+	// }
 
-	fn merge_with(&mut self, other: Self) {
-		self.extend(other.ranges())
-	}
+	// fn merge_with(&mut self, other: Self) {
+	// 	self.extend(other.ranges())
+	// }
 
 	fn rust_set(&self) -> proc_macro2::TokenStream {
 		let ranges = self.ranges().map(|range| match range.len() {
@@ -165,59 +163,59 @@ impl automaton::DeterminizeLabel for CharSet {
 	}
 }
 
-impl<V> TokenMap<char, V> for RangeMap<char, V> {
-	type Iter<'a> = btree_range_map::generic::map::Iter<'a, char, V, btree_range_map::DefaultMapContainer<char, V>> where V: 'a, Self: 'a;
+// impl<V> TokenMap<char, V> for RangeMap<char, V> {
+// 	// type Iter<'a> = btree_range_map::generic::map::Iter<'a, char, V, btree_range_map::DefaultMapContainer<char, V>> where V: 'a, Self: 'a;
 
-	fn is_empty(&self) -> bool {
-		self.is_empty()
-	}
+// 	// fn is_empty(&self) -> bool {
+// 	// 	self.is_empty()
+// 	// }
 
-	fn len(&self) -> usize {
-		self.len() as usize
-	}
+// 	// fn len(&self) -> usize {
+// 	// 	self.len() as usize
+// 	// }
 
-	fn iter(&self) -> Self::Iter<'_> {
-		self.iter()
-	}
+// 	// fn iter(&self) -> Self::Iter<'_> {
+// 	// 	self.iter()
+// 	// }
 
-	fn insert_range(&mut self, range: <char as Token>::Range, value: V)
-	where
-		V: PartialEq + Clone,
-	{
-		self.insert(range, value)
-	}
+// 	fn insert_range(&mut self, range: <char as Token>::Range, value: V)
+// 	where
+// 		V: PartialEq + Clone,
+// 	{
+// 		self.insert(range, value)
+// 	}
 
-	fn insert(&mut self, set: <char as Token>::Set, value: V)
-	where
-		V: PartialEq + Clone,
-	{
-		let mut ranges = set.ranges();
+// 	// fn insert(&mut self, set: <char as Token>::Set, value: V)
+// 	// where
+// 	// 	V: PartialEq + Clone,
+// 	// {
+// 	// 	let mut ranges = set.ranges();
 
-		if let Some(first) = ranges.next() {
-			for range in ranges {
-				self.insert_range(range, value.clone())
-			}
+// 	// 	if let Some(first) = ranges.next() {
+// 	// 		for range in ranges {
+// 	// 			self.insert_range(range, value.clone())
+// 	// 		}
 
-			self.insert_range(first, value)
-		}
-	}
+// 	// 		self.insert_range(first, value)
+// 	// 	}
+// 	// }
 
-	fn update_range(&mut self, range: <char as Token>::Range, f: impl Fn(Option<&V>) -> Option<V>)
-	where
-		V: PartialEq + Clone,
-	{
-		self.update(range, f)
-	}
+// 	// fn update_range(&mut self, range: <char as Token>::Range, f: impl Fn(Option<&V>) -> Option<V>)
+// 	// where
+// 	// 	V: PartialEq + Clone,
+// 	// {
+// 	// 	self.update(range, f)
+// 	// }
 
-	fn update(&mut self, set: &<char as Token>::Set, f: impl Fn(Option<&V>) -> Option<V>)
-	where
-		V: PartialEq + Clone,
-	{
-		for range in set.ranges() {
-			self.update(range, &f)
-		}
-	}
-}
+// 	// fn update(&mut self, set: &<char as Token>::Set, f: impl Fn(Option<&V>) -> Option<V>)
+// 	// where
+// 	// 	V: PartialEq + Clone,
+// 	// {
+// 	// 	for range in set.ranges() {
+// 	// 		self.update(range, &f)
+// 	// 	}
+// 	// }
+// }
 
 impl<V: Clone + PartialEq> automaton::RangeMap<AnyRange<char>, V> for RangeMap<char, V> {
 	fn update(&mut self, key: AnyRange<char>, f: impl Fn(Option<&V>) -> Option<V>) {

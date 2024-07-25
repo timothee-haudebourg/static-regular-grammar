@@ -72,13 +72,13 @@ impl CharSet {
 		CharSet(RangeSet::new())
 	}
 
-	pub fn is_empty(&self) -> bool {
-		self.0.is_empty()
-	}
+	// pub fn is_empty(&self) -> bool {
+	// 	self.0.is_empty()
+	// }
 
-	pub fn len(&self) -> u64 {
-		self.0.len()
-	}
+	// pub fn len(&self) -> u64 {
+	// 	self.0.len()
+	// }
 
 	pub fn is_ascii(&self) -> bool {
 		self.0
@@ -127,9 +127,9 @@ impl CharSet {
 		Ranges(self.0.iter())
 	}
 
-	pub fn first(&self) -> Option<char> {
-		self.0.iter().next().and_then(|range| range.first())
-	}
+	// pub fn first(&self) -> Option<char> {
+	// 	self.0.iter().next().and_then(|range| range.first())
+	// }
 }
 
 pub struct Ranges<'a>(

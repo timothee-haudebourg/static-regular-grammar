@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, fmt};
+use std::fmt;
 
 pub mod automaton;
 mod case;
@@ -117,31 +117,31 @@ pub fn fmt_u8_sanitized(c: u8, f: &mut fmt::Formatter) -> fmt::Result {
 	}
 }
 
-pub trait Get2Mut {
-	type Item;
+// pub trait Get2Mut {
+// 	type Item;
 
-	fn get2_mut(&mut self, a: usize, b: usize) -> (&mut Self::Item, &mut Self::Item);
-}
+// 	fn get2_mut(&mut self, a: usize, b: usize) -> (&mut Self::Item, &mut Self::Item);
+// }
 
-impl<T> Get2Mut for [T] {
-	type Item = T;
+// impl<T> Get2Mut for [T] {
+// 	type Item = T;
 
-	fn get2_mut(&mut self, a: usize, b: usize) -> (&mut Self::Item, &mut Self::Item) {
-		match a.cmp(&b) {
-			Ordering::Less => {
-				let (left, right) = self.split_at_mut(b);
-				(&mut left[a], &mut right[0])
-			}
-			Ordering::Greater => {
-				let (left, right) = self.split_at_mut(a);
-				(&mut right[0], &mut left[b])
-			}
-			Ordering::Equal => {
-				panic!("a == b")
-			}
-		}
-	}
-}
+// 	fn get2_mut(&mut self, a: usize, b: usize) -> (&mut Self::Item, &mut Self::Item) {
+// 		match a.cmp(&b) {
+// 			Ordering::Less => {
+// 				let (left, right) = self.split_at_mut(b);
+// 				(&mut left[a], &mut right[0])
+// 			}
+// 			Ordering::Greater => {
+// 				let (left, right) = self.split_at_mut(a);
+// 				(&mut right[0], &mut left[b])
+// 			}
+// 			Ordering::Equal => {
+// 				panic!("a == b")
+// 			}
+// 		}
+// 	}
+// }
 
 pub trait MergeRef {
 	fn merge_with_ref(&mut self, other: &Self);

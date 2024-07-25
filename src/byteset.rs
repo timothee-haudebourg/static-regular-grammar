@@ -52,13 +52,13 @@ impl ByteSet {
 		ByteSet(RangeSet::new())
 	}
 
-	pub fn is_empty(&self) -> bool {
-		self.0.is_empty()
-	}
+	// pub fn is_empty(&self) -> bool {
+	// 	self.0.is_empty()
+	// }
 
-	pub fn len(&self) -> u16 {
-		self.0.len()
-	}
+	// pub fn len(&self) -> u16 {
+	// 	self.0.len()
+	// }
 
 	pub fn from_u8(c: u8, case_sensitive: bool) -> ByteSet {
 		let mut set = ByteSet::new();
@@ -97,9 +97,9 @@ impl ByteSet {
 		Ranges(self.0.iter())
 	}
 
-	pub fn first(&self) -> Option<u8> {
-		self.0.iter().next().and_then(|range| range.first())
-	}
+	// pub fn first(&self) -> Option<u8> {
+	// 	self.0.iter().next().and_then(|range| range.first())
+	// }
 
 	pub fn is_ascii(&self) -> bool {
 		for range in self.0.iter() {

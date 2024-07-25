@@ -162,6 +162,8 @@
 //! ```
 //!
 //! [`rust-analyzer`](https://rust-analyzer.github.io/)
+use std::env;
+
 use indoc::formatdoc;
 use proc_macro2::{Ident, Span, TokenStream};
 use proc_macro_error::{abort, proc_macro_error};
@@ -196,6 +198,9 @@ pub fn derive_regular_grammar(input_tokens: proc_macro::TokenStream) -> proc_mac
 
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum Error {
+	#[error(transparent)]
+	Var(env::VarError),
+
 	#[error("unexpected type parameter")]
 	UnexpectedTypeParameter,
 

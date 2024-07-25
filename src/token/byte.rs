@@ -1,22 +1,20 @@
-use std::fmt::Display;
-
 use btree_range_map::{AnyRange, RangeMap};
 use quote::quote;
 
 use crate::{
 	byteset,
-	utils::{automaton, MergeRef, Sanitized},
+	utils::{automaton, MergeRef},
 	ByteSet,
 };
 
-use super::{Token, TokenMap, TokenRange, TokenSet};
+use super::{Token, TokenRange, TokenSet};
 
 impl Token for u8 {
 	type Range = AnyRange<u8>;
 
 	type Set = ByteSet;
 
-	type Map<V> = RangeMap<u8, V>;
+	// type Map<V> = RangeMap<u8, V>;
 
 	const UNICODE: bool = false;
 
@@ -40,9 +38,9 @@ impl Token for u8 {
 		}
 	}
 
-	fn fmt_token(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		Sanitized(*self).fmt(f)
-	}
+	// fn fmt_token(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+	// 	Sanitized(*self).fmt(f)
+	// }
 
 	fn rust_type() -> proc_macro2::TokenStream {
 		quote!(u8)
@@ -82,11 +80,11 @@ impl Token for u8 {
 		Some(quote!(unsafe { ::core::str::from_utf8_unchecked(&self.0) }))
 	}
 
-	fn rust_inner_into_ascii_method_body() -> Option<proc_macro2::TokenStream> {
-		Some(quote!(unsafe {
-			::std::string::String::from_utf8_unchecked(self.0)
-		}))
-	}
+	// fn rust_inner_into_ascii_method_body() -> Option<proc_macro2::TokenStream> {
+	// 	Some(quote!(unsafe {
+	// 		::std::string::String::from_utf8_unchecked(self.0)
+	// 	}))
+	// }
 
 	fn rust_empty_string() -> proc_macro2::TokenStream {
 		quote! {
@@ -100,9 +98,9 @@ impl TokenRange<u8> for AnyRange<u8> {
 		(a..=b).into()
 	}
 
-	fn peek(&self) -> Option<u8> {
-		self.first()
-	}
+	// fn peek(&self) -> Option<u8> {
+	// 	self.first()
+	// }
 }
 
 impl TokenSet<u8> for ByteSet {
@@ -110,25 +108,25 @@ impl TokenSet<u8> for ByteSet {
 		ByteSet::from_u8(token, case_sensitive)
 	}
 
-	fn is_empty(&self) -> bool {
-		self.is_empty()
-	}
+	// fn is_empty(&self) -> bool {
+	// 	self.is_empty()
+	// }
 
-	fn len(&self) -> usize {
-		self.len() as usize
-	}
+	// fn len(&self) -> usize {
+	// 	self.len() as usize
+	// }
 
-	fn peek(&self) -> Option<u8> {
-		self.first()
-	}
+	// fn peek(&self) -> Option<u8> {
+	// 	self.first()
+	// }
 
-	fn intersects_range(&self, range: <u8 as Token>::Range) -> bool {
-		self.intersects(range)
-	}
+	// fn intersects_range(&self, range: <u8 as Token>::Range) -> bool {
+	// 	self.intersects(range)
+	// }
 
-	fn merge_with(&mut self, other: Self) {
-		self.extend(other.ranges())
-	}
+	// fn merge_with(&mut self, other: Self) {
+	// 	self.extend(other.ranges())
+	// }
 
 	fn rust_set(&self) -> proc_macro2::TokenStream {
 		let ranges = self.ranges().map(|range| match range.len() {
@@ -174,59 +172,59 @@ impl automaton::DeterminizeLabel for ByteSet {
 	}
 }
 
-impl<V> TokenMap<u8, V> for RangeMap<u8, V> {
-	type Iter<'a> = btree_range_map::generic::map::Iter<'a, u8, V, btree_range_map::DefaultMapContainer<u8, V>> where V: 'a, Self: 'a;
+// impl<V> TokenMap<u8, V> for RangeMap<u8, V> {
+// 	// type Iter<'a> = btree_range_map::generic::map::Iter<'a, u8, V, btree_range_map::DefaultMapContainer<u8, V>> where V: 'a, Self: 'a;
 
-	fn is_empty(&self) -> bool {
-		self.is_empty()
-	}
+// 	// fn is_empty(&self) -> bool {
+// 	// 	self.is_empty()
+// 	// }
 
-	fn len(&self) -> usize {
-		self.len() as usize
-	}
+// 	// fn len(&self) -> usize {
+// 	// 	self.len() as usize
+// 	// }
 
-	fn iter(&self) -> Self::Iter<'_> {
-		self.iter()
-	}
+// 	// fn iter(&self) -> Self::Iter<'_> {
+// 	// 	self.iter()
+// 	// }
 
-	fn insert_range(&mut self, range: <u8 as Token>::Range, value: V)
-	where
-		V: PartialEq + Clone,
-	{
-		self.insert(range, value)
-	}
+// 	fn insert_range(&mut self, range: <u8 as Token>::Range, value: V)
+// 	where
+// 		V: PartialEq + Clone,
+// 	{
+// 		self.insert(range, value)
+// 	}
 
-	fn insert(&mut self, set: <u8 as Token>::Set, value: V)
-	where
-		V: PartialEq + Clone,
-	{
-		let mut ranges = set.ranges();
+// 	// fn insert(&mut self, set: <u8 as Token>::Set, value: V)
+// 	// where
+// 	// 	V: PartialEq + Clone,
+// 	// {
+// 	// 	let mut ranges = set.ranges();
 
-		if let Some(first) = ranges.next() {
-			for range in ranges {
-				self.insert_range(range, value.clone())
-			}
+// 	// 	if let Some(first) = ranges.next() {
+// 	// 		for range in ranges {
+// 	// 			self.insert_range(range, value.clone())
+// 	// 		}
 
-			self.insert_range(first, value)
-		}
-	}
+// 	// 		self.insert_range(first, value)
+// 	// 	}
+// 	// }
 
-	fn update_range(&mut self, range: <u8 as Token>::Range, f: impl Fn(Option<&V>) -> Option<V>)
-	where
-		V: PartialEq + Clone,
-	{
-		self.update(range, f)
-	}
+// 	// fn update_range(&mut self, range: <u8 as Token>::Range, f: impl Fn(Option<&V>) -> Option<V>)
+// 	// where
+// 	// 	V: PartialEq + Clone,
+// 	// {
+// 	// 	self.update(range, f)
+// 	// }
 
-	fn update(&mut self, set: &<u8 as Token>::Set, f: impl Fn(Option<&V>) -> Option<V>)
-	where
-		V: PartialEq + Clone,
-	{
-		for range in set.ranges() {
-			self.update(range, &f)
-		}
-	}
-}
+// 	// fn update(&mut self, set: &<u8 as Token>::Set, f: impl Fn(Option<&V>) -> Option<V>)
+// 	// where
+// 	// 	V: PartialEq + Clone,
+// 	// {
+// 	// 	for range in set.ranges() {
+// 	// 		self.update(range, &f)
+// 	// 	}
+// 	// }
+// }
 
 impl<V: Clone + PartialEq> automaton::RangeMap<AnyRange<u8>, V> for RangeMap<u8, V> {
 	fn update(&mut self, key: AnyRange<u8>, f: impl Fn(Option<&V>) -> Option<V>) {

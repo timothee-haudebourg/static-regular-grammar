@@ -1,4 +1,7 @@
-use std::path::Path;
+use std::{
+	env,
+	path::{Path, PathBuf},
+};
 
 use proc_macro2::Span;
 use serde::{Deserialize, Serialize};
@@ -13,6 +16,9 @@ pub mod abnf;
 pub enum GrammarError {
 	#[error(transparent)]
 	IO(#[from] std::io::Error),
+
+	#[error(transparent)]
+	Var(env::VarError),
 
 	#[error("invalid ABNF grammar: {0}")]
 	Abnf(::abnf::error::ParseError),
@@ -164,7 +170,16 @@ pub(crate) fn extract_grammar<T: Token>(
 	attrs: Vec<syn::Attribute>,
 ) -> Result<(Grammar<T>, [u8; 32]), (GrammarError, Span)> {
 	let (ty, data) = match path {
-		Some(path) => {
+		Some(relative_path) => {
+			let path = match env::var("CARGO_MANIFEST_DIR") {
+				Ok(manifest_dir) => {
+					let mut path: PathBuf = manifest_dir.into();
+					path.extend(relative_path);
+					path
+				}
+				Err(e) => return Err((GrammarError::Var(e), Span::call_site())),
+			};
+
 			let ty = match path.extension() {
 				Some(ext) if ext == "abnf" => GrammarType::Abnf,
 				_ => return Err((GrammarError::UnknownGrammarFormat, Span::call_site())),

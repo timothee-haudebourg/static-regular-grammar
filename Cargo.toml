@@ -1,6 +1,6 @@
 [package]
 name = "static-regular-grammar"
-version = "2.0.1"
+version = "2.0.2"
 edition = "2021"
 authors = ["Timothée Haudebourg <author@haudebourg.net>"]
 categories = ["parsing"]

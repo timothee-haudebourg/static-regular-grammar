@@ -1,4 +1,3 @@
-use core::fmt;
 use std::{fmt::Debug, hash::Hash};
 
 use serde::{de::DeserializeOwned, Serialize};
@@ -19,8 +18,8 @@ pub trait Token: Copy {
 	/// Set of tokens.
 	type Set: TokenSet<Self>;
 
-	/// Token map.
-	type Map<V>: TokenMap<Self, V>;
+	// /// Token map.
+	// type Map<V>: TokenMap<Self, V>;
 
 	const UNICODE: bool;
 
@@ -30,7 +29,7 @@ pub trait Token: Copy {
 
 	fn from_u32(v: u32) -> Option<Self>;
 
-	fn fmt_token(&self, f: &mut fmt::Formatter) -> fmt::Result;
+	// fn fmt_token(&self, f: &mut fmt::Formatter) -> fmt::Result;
 
 	fn rust_type() -> proc_macro2::TokenStream;
 
@@ -60,9 +59,9 @@ pub trait Token: Copy {
 		None
 	}
 
-	fn rust_inner_into_ascii_method_body() -> Option<proc_macro2::TokenStream> {
-		None
-	}
+	// fn rust_inner_into_ascii_method_body() -> Option<proc_macro2::TokenStream> {
+	// 	None
+	// }
 
 	fn rust_empty_string() -> proc_macro2::TokenStream;
 }
@@ -75,7 +74,7 @@ pub trait TokenRange<T: Token>: Debug + Copy + Ord + Hash {
 		Self::new(T::from_u8(b), T::from_u8(b))
 	}
 
-	fn peek(&self) -> Option<T>;
+	// fn peek(&self) -> Option<T>;
 }
 
 pub trait TokenSet<T: Token>:
@@ -97,45 +96,45 @@ pub trait TokenSet<T: Token>:
 		result
 	}
 
-	fn is_empty(&self) -> bool;
+	// fn is_empty(&self) -> bool;
 
-	fn len(&self) -> usize;
+	// fn len(&self) -> usize;
 
-	fn peek(&self) -> Option<T>;
+	// fn peek(&self) -> Option<T>;
 
-	fn intersects_range(&self, range: T::Range) -> bool;
+	// fn intersects_range(&self, range: T::Range) -> bool;
 
-	fn merge_with(&mut self, other: Self);
+	// fn merge_with(&mut self, other: Self);
 
 	fn rust_set(&self) -> proc_macro2::TokenStream;
 }
 
-pub trait TokenMap<K: Token, V>: Default + IntoIterator<Item = (K::Range, V)> {
-	type Iter<'a>: Iterator<Item = (&'a K::Range, &'a V)>
-	where
-		K::Range: 'a,
-		V: 'a,
-		Self: 'a;
+// pub trait TokenMap<K: Token, V>: Default + IntoIterator<Item = (K::Range, V)> {
+// 	// type Iter<'a>: Iterator<Item = (&'a K::Range, &'a V)>
+// 	// where
+// 	// 	K::Range: 'a,
+// 	// 	V: 'a,
+// 	// 	Self: 'a;
 
-	fn is_empty(&self) -> bool;
+// 	// fn is_empty(&self) -> bool;
 
-	fn len(&self) -> usize;
+// 	// fn len(&self) -> usize;
 
-	fn iter(&self) -> Self::Iter<'_>;
+// 	// fn iter(&self) -> Self::Iter<'_>;
 
-	fn insert_range(&mut self, range: K::Range, value: V)
-	where
-		V: PartialEq + Clone;
+// 	fn insert_range(&mut self, range: K::Range, value: V)
+// 	where
+// 		V: PartialEq + Clone;
 
-	fn insert(&mut self, set: K::Set, value: V)
-	where
-		V: PartialEq + Clone;
+// 	// fn insert(&mut self, set: K::Set, value: V)
+// 	// where
+// 	// 	V: PartialEq + Clone;
 
-	fn update_range(&mut self, range: K::Range, f: impl Fn(Option<&V>) -> Option<V>)
-	where
-		V: PartialEq + Clone;
+// 	// fn update_range(&mut self, range: K::Range, f: impl Fn(Option<&V>) -> Option<V>)
+// 	// where
+// 	// 	V: PartialEq + Clone;
 
-	fn update(&mut self, set: &K::Set, f: impl Fn(Option<&V>) -> Option<V>)
-	where
-		V: PartialEq + Clone;
-}
+// 	// fn update(&mut self, set: &K::Set, f: impl Fn(Option<&V>) -> Option<V>)
+// 	// where
+// 	// 	V: PartialEq + Clone;
+// }

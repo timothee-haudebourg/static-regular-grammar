@@ -1,4 +1,4 @@
-use std::{borrow::Cow, path::PathBuf};
+use std::{borrow::Cow, env, path::PathBuf};
 
 use proc_macro2::{Ident, Span};
 
@@ -51,7 +51,14 @@ fn find_target_dir() -> Result<Cow<'static, str>, std::env::VarError> {
 
 fn build_cache_path(ident: &Ident, path: Option<PathBuf>) -> Result<PathBuf, (Error, Span)> {
 	match path {
-		Some(path) => Ok(path),
+		Some(relative_path) => match env::var("CARGO_MANIFEST_DIR") {
+			Ok(manifest_dir) => {
+				let mut path: PathBuf = manifest_dir.into();
+				path.extend(&relative_path);
+				Ok(path)
+			}
+			Err(e) => Err((Error::Var(e), ident.span())),
+		},
 		None => {
 			let target =
 				find_target_dir().map_err(|e| (Error::TargetDirNotFound(e), ident.span()))?;
