@@ -499,7 +499,7 @@ fn generate_typed<T: Token>(
 	if !data.options.no_borrow {
 		let as_bytes = T::rust_inner_as_bytes_method().map(|as_bytes| {
 			quote! {
-				pub fn as_bytes(&self) -> &[u8] {
+				pub const fn as_bytes(&self) -> &[u8] {
 					self.0.#as_bytes()
 				}
 			}
@@ -517,7 +517,7 @@ fn generate_typed<T: Token>(
 
 		tokens.extend(quote! {
 			impl #ident {
-				pub fn #as_inner(&self) -> &#string_type {
+				pub const fn #as_inner(&self) -> &#string_type {
 					&self.0
 				}
 
@@ -543,7 +543,7 @@ fn generate_typed<T: Token>(
 			if let Some(as_ascii) = T::rust_inner_as_ascii_method_body() {
 				tokens.extend(quote! {
 					impl #ident {
-						pub fn as_str(&self) -> &str {
+						pub const fn as_str(&self) -> &str {
 							#as_ascii
 						}
 					}
