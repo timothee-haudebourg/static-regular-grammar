@@ -30,7 +30,7 @@ impl fmt::Display for Sanitized<u8> {
 	}
 }
 
-impl<'a> fmt::Display for Sanitized<&'a str> {
+impl fmt::Display for Sanitized<&str> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		for c in self.0.chars() {
 			fmt_char_sanitized(c, f)?;
@@ -40,7 +40,7 @@ impl<'a> fmt::Display for Sanitized<&'a str> {
 	}
 }
 
-impl<'a> fmt::Display for Sanitized<&'a [u8]> {
+impl fmt::Display for Sanitized<&[u8]> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		for &c in self.0 {
 			fmt_u8_sanitized(c, f)?;
@@ -50,7 +50,7 @@ impl<'a> fmt::Display for Sanitized<&'a [u8]> {
 	}
 }
 
-impl<'a> fmt::Display for Sanitized<&'a String> {
+impl fmt::Display for Sanitized<&String> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		for c in self.0.chars() {
 			fmt_char_sanitized(c, f)?;
@@ -60,7 +60,7 @@ impl<'a> fmt::Display for Sanitized<&'a String> {
 	}
 }
 
-impl<'a> fmt::Display for Sanitized<&'a Vec<u8>> {
+impl fmt::Display for Sanitized<&Vec<u8>> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		for &c in self.0 {
 			fmt_u8_sanitized(c, f)?;
@@ -87,11 +87,11 @@ pub fn fmt_char_sanitized(c: char, f: &mut fmt::Formatter) -> fmt::Result {
 		c => {
 			let value = c as u32;
 			if value <= 0xff {
-				write!(f, "\\x{{{:02x}}}", value)
+				write!(f, "\\x{{{value:02x}}}")
 			} else if value <= 0xffff {
-				write!(f, "\\x{{{:04x}}}", value)
+				write!(f, "\\x{{{value:04x}}}")
 			} else {
-				write!(f, "\\x{{{:08x}}}", value)
+				write!(f, "\\x{{{value:08x}}}")
 			}
 		}
 	}
@@ -112,7 +112,7 @@ pub fn fmt_u8_sanitized(c: u8, f: &mut fmt::Formatter) -> fmt::Result {
 		0x1b => "\\e".fmt(f),
 		c if is_graphic_byte(c) => (c as char).fmt(f),
 		c => {
-			write!(f, "\\x{{{:02x}}}", c)
+			write!(f, "\\x{{{c:02x}}}")
 		}
 	}
 }

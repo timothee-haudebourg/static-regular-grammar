@@ -172,7 +172,7 @@ impl fmt::Display for ByteSet {
 
 impl fmt::Debug for ByteSet {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "CharSet({})", self)
+		write!(f, "CharSet({self})")
 	}
 }
 

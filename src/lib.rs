@@ -56,10 +56,10 @@
 //! # use static_regular_grammar::RegularGrammar;
 //! /// Example grammar.
 //! #[derive(RegularGrammar)]
-//! #[grammar(file = "examples/test.abnf", entry_point = "bar")]
-//! pub struct Bar([u8]);
+//! #[grammar(file = "examples/test.abnf")]
+//! pub struct Foo([u8]);
 //!
-//! let bar = Bar::new(b"baaaar").unwrap();
+//! let foo = Foo::new(b"foo").unwrap();
 //! ```
 //!
 //! # ASCII
@@ -71,10 +71,10 @@
 //! # use static_regular_grammar::RegularGrammar;
 //! #[derive(RegularGrammar)]
 //! #[grammar(file = "examples/test.abnf", ascii)]
-//! pub struct Bar([u8]);
+//! pub struct Foo([u8]);
 //!
-//! let bar = Bar::new(b"baaaar").unwrap();
-//! println!("{bar}");
+//! let foo = Foo::new(b"foo").unwrap();
+//! println!("{foo}");
 //! ```
 //!
 //! # Sized Type
@@ -407,14 +407,26 @@ fn generate_typed<T: Token>(
 
 	let error = format_ident!("Invalid{}", ident);
 	let error_msg = format!("Invalid {name} `{{0}}`");
+	let lib_string: syn::Path = syn::parse_str(if cfg!(feature = "std") {
+		"::std::string::String"
+	} else {
+		"::alloc::string::String"
+	})
+	.expect("unexpected string::String path parsing error");
+	let to_owned: syn::Path = syn::parse_str(if cfg!(feature = "std") {
+		"::std::borrow::ToOwned"
+	} else {
+		"::alloc::borrow::ToOwned"
+	})
+	.expect("unexpected borrow::ToOwned path parsing error");
 
 	let new_doc = format!("Creates a new {name} by parsing the `input` value");
 	let new_unchecked_doc = formatdoc!(
 		r#"
         Creates a new {name} from the `input` value without validation.
-        
+
         # Safety
-        
+
         The input data *must* be a valid {name}."#
 	);
 
@@ -437,7 +449,7 @@ fn generate_typed<T: Token>(
 			}
 		}
 
-		impl<T: ::core::fmt::Debug + ::core::fmt::Display> ::std::error::Error for #error<T> {}
+		impl<T: ::core::fmt::Debug + ::core::fmt::Display> ::core::error::Error for #error<T> {}
 
 		impl #ident {
 			#[doc = #new_doc]
@@ -624,7 +636,7 @@ fn generate_typed<T: Token>(
 
 		let visit_bytes = if T::UNICODE {
 			quote! {
-				match std::str::from_utf8(v) {
+				match core::str::from_utf8(v) {
 					Ok(s) => #ident::new(s).map_err(|_| ()),
 					Err(e) => Err(())
 				}
@@ -691,9 +703,9 @@ fn generate_typed<T: Token>(
 		let owned_new_unchecked_doc = formatdoc!(
 			r#"
 			Creates a new owned {name} from the `input` value without validation.
-			
+
 			# Safety
-			
+
 			The input data *must* be a valid {name}."#
 		);
 
@@ -744,7 +756,7 @@ fn generate_typed<T: Token>(
 				}
 			}
 
-			impl ::std::borrow::ToOwned for #ident {
+			impl #to_owned for #ident {
 				type Owned = #buffer_ident;
 
 				fn to_owned(&self) -> #buffer_ident {
@@ -774,20 +786,20 @@ fn generate_typed<T: Token>(
 		if !T::UNICODE && ascii {
 			tokens.extend(quote! {
 				impl #buffer_ident {
-					pub fn into_string(self) -> ::std::string::String {
+					pub fn into_string(self) -> #lib_string {
 						unsafe {
-							::std::string::String::from_utf8_unchecked(self.0)
+							#lib_string::from_utf8_unchecked(self.0)
 						}
 					}
 				}
 
-				impl TryFrom<::std::string::String> for #buffer_ident {
-					type Error = #error<::std::string::String>;
+				impl TryFrom<#lib_string> for #buffer_ident {
+					type Error = #error<#lib_string>;
 
-					fn try_from(input: ::std::string::String) -> Result<#buffer_ident, #error<::std::string::String>> {
+					fn try_from(input: #lib_string) -> Result<#buffer_ident, #error<#lib_string>> {
 						let bytes = input.into_bytes();
 						#buffer_ident::new(bytes).map_err(|#error(bytes)| unsafe {
-							#error(::std::string::String::from_utf8_unchecked(bytes))
+							#error(#lib_string::from_utf8_unchecked(bytes))
 						})
 					}
 				}
@@ -802,10 +814,10 @@ fn generate_typed<T: Token>(
 
 		if T::UNICODE || ascii {
 			tokens.extend(quote! {
-				impl ::std::str::FromStr for #buffer_ident {
-					type Err = #error<::std::string::String>;
+				impl ::core::str::FromStr for #buffer_ident {
+					type Err = #error<#lib_string>;
 
-					fn from_str(s: &str) -> Result<Self, #error<::std::string::String>> {
+					fn from_str(s: &str) -> Result<Self, #error<#lib_string>> {
 						let buffer = s.to_string();
 						buffer.try_into()
 					}
@@ -1010,7 +1022,7 @@ fn generate_typed<T: Token>(
 						#buffer_ident::new(v)
 					},
 					quote! {
-						match ::std::string::String::from_utf8(v) {
+						match #lib_string::from_utf8(v) {
 							Ok(s) => #buffer_ident::new(s).map_err(|#error(s)| #error(s.into_bytes())),
 							Err(e) => Err(#error(e.into_bytes()))
 						}
@@ -1020,7 +1032,7 @@ fn generate_typed<T: Token>(
 				(
 					quote! {
 						#buffer_ident::new(v.into_bytes()).map_err(|#error(bytes)| unsafe {
-							#error(::std::string::String::from_utf8_unchecked(bytes))
+							#error(#lib_string::from_utf8_unchecked(bytes))
 						})
 					},
 					quote! {

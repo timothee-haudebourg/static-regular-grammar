@@ -62,7 +62,7 @@ fn build_cache_path(ident: &Ident, path: Option<PathBuf>) -> Result<PathBuf, (Er
 		None => {
 			let target =
 				find_target_dir().map_err(|e| (Error::TargetDirNotFound(e), ident.span()))?;
-			Ok(format!("{target}/regular-grammar/{}.automaton.cbor", ident).into())
+			Ok(format!("{target}/regular-grammar/{ident}.automaton.cbor").into())
 		}
 	}
 }

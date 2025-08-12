@@ -19,11 +19,11 @@ impl fmt::Display for DisplayChar {
 			_ if c.is_control() => {
 				let d = c as u32;
 				if d <= 0xff {
-					write!(f, "\\x{:02x}", d)
+					write!(f, "\\x{d:02x}")
 				} else if d <= 0xffff {
-					write!(f, "\\u{:04x}", d)
+					write!(f, "\\u{d:04x}")
 				} else {
-					write!(f, "\\U{:08x}", d)
+					write!(f, "\\U{d:08x}")
 				}
 			}
 			_ => c.fmt(f),
@@ -184,7 +184,7 @@ impl fmt::Display for CharSet {
 
 impl fmt::Debug for CharSet {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "CharSet({})", self)
+		write!(f, "CharSet({self})")
 	}
 }
 
