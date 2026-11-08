@@ -166,7 +166,6 @@ use std::env;
 
 use indoc::formatdoc;
 use proc_macro2::{Ident, Span, TokenStream};
-use proc_macro_error::{abort, proc_macro_error};
 use quote::{format_ident, quote};
 use syn::{parse_macro_input, spanned::Spanned, Data, DeriveInput};
 
@@ -187,12 +186,11 @@ use token::{Token, TokenSet};
 use utils::{automaton::DetAutomaton, SnakeCase};
 
 #[proc_macro_derive(RegularGrammar, attributes(grammar))]
-#[proc_macro_error]
 pub fn derive_regular_grammar(input_tokens: proc_macro::TokenStream) -> proc_macro::TokenStream {
 	let input = parse_macro_input!(input_tokens as DeriveInput);
 	match generate_regular_grammar(input) {
 		Ok(tokens) => tokens.into(),
-		Err((e, span)) => abort!(span, e),
+		Err((e, span)) => syn::Error::new(span, e).into_compile_error().into(),
 	}
 }
 
